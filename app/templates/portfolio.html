@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% import "_macros.html" as macros %}
+
+{% block title %}MyPortfolio{% endblock %}
+
+{% block page_content %}
+<div class="page-header">
+    <h4>{{ title }}</h4>
+    <table class="table table-striped">
+    <tr>
+        <th>Username</th>
+        <th>Account Type</th>
+        <th>Platform Name</th>
+        <th style="text-align:right">Value</th>
+        <th>Date</th>
+    </tr>
+    {% for account in pagination.items %}
+        <tr>
+            <td>{{ account.user }}</td>
+            <td>{{ account.type }}</td>
+            {% if account.id is not none %}
+                <td><a href="{{ root }}/position/{{ account.id }}">{{ account.platform }}</a></td>
+            {% else %}
+                <td>{{ account.platform }}</td>
+            {% endif %}
+            <td style="text-align:right">{{ account.value }}</td>
+            {% if account.vdate is not none %}
+                <td>[<a href="/update/account/{{ account.id }}">{{ account.vdate }}</a>]</td>
+            {% else %}
+                <td></td>
+            {% endif %}
+        </tr>
+    {% endfor %}
+    </table>
+</div>
+{{ macros.pagination_widget(pagination, prevPage, nextPage, endpoint) }}
+{% endblock %}

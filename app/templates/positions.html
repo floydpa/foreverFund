@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% import "_macros.html" as macros %}
+
+{% block title %}MyPortfolio{% endblock %}
+
+{% block page_content %}
+<div class="page-header">
+    <table class="table table-striped">
+    <tr>
+        <th>Position Name</th>
+        <th style="text-align:right">Value</th>
+        <th>Date</th>
+    </tr>
+    {% for position in pagination.items %}
+        <tr>
+            {% if position.id is not none %}
+                <td><a href="/security/{{ position.id }}">{{ position.name }}</a></td>
+            {% else %}
+                <td style="font-weight:bold">{{ position.name }}</td>
+            {% endif %}
+
+            <td style="text-align:right">{{ position.value }}</td>
+
+            {% if position.vdate is not none %}
+                <td>[{{ position.vdate }}]</td>
+            {% else %}
+                <td></td>
+            {% endif %}
+        </tr>
+    {% endfor %}
+    </table>
+</div>
+{{ macros.pagination_widget(pagination, prevPage, nextPage, endpoint) }}
+{% endblock %}

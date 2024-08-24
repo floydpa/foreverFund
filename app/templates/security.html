@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% import "_macros.html" as macros %}
+
+{% block title %}MyPortfolio{% endblock %}
+
+{% block page_content %}
+<div class="page-header">
+    <h4>{{ title }}</h4>
+    <table class="table table-striped">
+    <tr>
+        <th>Attribute</th>
+        <th>Value</th>
+    </tr>
+    {% for attr in pagination.items %}
+        <tr>
+            {% if attr.tag == "URL-list" %}
+                <td>Additional Information</td>
+                <td>
+                    <table>
+                    <tr>
+                    {% for info in attr.value %}
+                        {% if info.tag == "URL-hl" %}
+                            <td><a href="{{ info.value }}" target="_blank">Hargreaves Lansdown</a>&nbsp;&nbsp;&nbsp;</td>
+                        {% elif info.tag == "URL-fe" %}
+                            <td><a href="{{ info.value }}" target="_blank">FE Trustnet</a>&nbsp;&nbsp;&nbsp;</td>
+                        {% elif info.tag == "URL-aic" %}
+                            <td><a href="{{ info.value }}" target="_blank">AIC</a>&nbsp;&nbsp;&nbsp;</td>
+                        {% endif %}
+                    {% endfor %}
+                    </tr></table>
+                </td>
+            {% else %}
+                <td>{{ attr.tag }}</td>
+                <td>{{ attr.value }}</td>
+            {% endif %}
+        </tr>
+    {% endfor %}
+    </table>
+</div>
+{{ macros.pagination_widget(pagination, prevPage, nextPage, endpoint) }}
+{% endblock %}

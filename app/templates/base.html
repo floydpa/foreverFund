@@ -1,0 +1,144 @@
+{% extends "bootstrap/base.html" %}
+
+{% block title %}MyPortfolio{% endblock %}
+
+{% block head %}
+{{ super() }}
+<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+<link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}"> 
+{% endblock %}
+
+{% block navbar %}
+<div class="navbar navbar-inverse" role="navigation">
+    <div class="container">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="/">MyPortfolio</a>
+        </div>
+        <div class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                        Assets<b class="caret"></b>
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="/assets/account">Account Value</a></li>
+                        <li><a href="/assets/position">Position Values</a></li>
+                        <li><a href="/assets/class/equity">Asset Allocation - Equities</a></li>
+                        <li><a href="/assets/class/bond">Asset Allocation - Bonds</a></li>
+                        <li><a href="/assets/class/infrastructure">Asset Allocation - Infrastructure</a></li>
+                        <li><a href="/assets/class/property">Asset Allocation - Property</a></li>
+                        <li><a href="/assets/class/commodities">Asset Allocation - Commodities</a></li>
+                        <li><a href="/assets/class/cash">Asset Allocation - Cash</a></li>
+                    </ul>
+                </li>
+
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                        Income<b class="caret"></b>
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="/income/account">Account Income</a></li>
+                        <li><a href="/income/position">Position Income</a></li>
+                        <li><a href="/dividend/payments">Dividend Payments</a></li>
+                        <li><a href="/dividend/mpayments">Monthly Payments</a></li>
+                        <li><a href="/dividend/declarations">Dividend Declarations</a></li>
+                        <li><a href="/dividend/mdeclarations">Monthly Declarations</a></li>
+                    </ul>
+                </li>
+
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                        Allocation<b class="caret"></b>
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="/assets/breakdown">Asset Allocation</a></li>
+                        <!-- li><a href="/sector/breakdown">Sector Allocation</a></li -->
+                        <li><a href="/parent/breakdown">Sector Allocation</a></li>
+                    </ul>
+                </li>
+
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                        Securities<b class="caret"></b>
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="/securities">All</a></li>
+                        <li><a href="/securities/IT">Investment Trusts</a></li>
+                        <li><a href="/securities/OEIC">OEICs</a></li>
+                        <li><a href="/securities/ETF">Exchange Traded Funds</a></li>
+                    </ul>
+                </li>
+
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                        Settings<b class="caret"></b>
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="/settings/user">Account Name</a></li>
+                        <li><a href="/settings/acctype">Account Type</a></li>
+                        <li><a href="/settings/platform">Platform Name</a></li>
+                    </ul>
+                </li>
+
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                        Simulation<b class="caret"></b>
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="/simulation/config">Configuration</a></li>
+                        <li><a href="/simulation/scenario">Run scenario</a></li>
+                    </ul>
+                </li>
+            </ul>
+            <ul class="nav navbar-nav navbar-right">
+                {% if session["ACCOUNT_NAME"] is not none %}
+                    <li><a href="/settings/user">User={{ session["ACCOUNT_NAME"] }}</a></li>
+                {% else %}
+                    <li><a href="/settings/user">User=ALL</a></li>
+                {% endif %}
+                {% if session["ACCOUNT_TYPE"] is not none %}
+                    <li><a href="/settings/acctype">Type={{ session["ACCOUNT_TYPE"] }}</a></li>
+                {% else %}
+                    <li><a href="/settings/acctype">Type=ALL</a></li>
+                {% endif %}
+                {% if session["PLATFORM_NAME"] is not none %}
+                    <li><a href="/settings/platform">Platform={{ session["PLATFORM_NAME"] }}</a></li>
+                {% else %}
+                    <li><a href="/settings/platform">Platform=ALL</a></li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</div>
+<div>
+    <ul>
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        {% for message in messages %}
+              <li>{{ message }} </li>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </ul>
+</div>
+
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    {% block page_content %}{% endblock %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{{ moment.include_moment() }}
+{% endblock %}

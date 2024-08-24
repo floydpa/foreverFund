@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}MyPortfolio{% endblock %}
+
+{% block page_content %}
+<h4>{{ title }}</h4>
+<form class="form form-horizontal" method="post" role="form">
+  <!--
+  {{ wtf.form_field(form.sname001) }}
+  {{ wtf.form_field(form.lname001) }}
+  {{ wtf.form_field(form.qty__001) }}
+  {{ wtf.form_field(form.price001) }}
+  {{ wtf.form_field(form.value001) }}
+  <br>
+  -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <!--
+  <thead>
+    <tr><th>Fund Name</th><th>Quantity</th><th>Price</th><th>Value</th></tr>
+  </thead>
+    -->
+  <tbody>
+    {% for pos in positions %}
+      <tr>
+        <!--
+        {% set lname = 'lname%03d' % loop.index %} <td>{{ form[lname]() }}</td>
+        {% set qty   = 'qty__%03d' % loop.index %} <td>{{ form[qty]() }}</td>
+        {% set price = 'price%03d' % loop.index %} <td>{{ form[price]() }}</td>
+        {% set value = 'value%03d' % loop.index %} <td>{{ form[value]() }}</td>
+        -->
+        <!--
+        {% set lname = 'lname%03d' % loop.index %} <td width="50%">{{ wtf.form_field(form[lname]) }}</td>
+        -->
+        {% set lname = 'lname%03d' % loop.index %} <td width="50%">{{ form[lname] }}</td>
+        {% set qty   = 'qty__%03d' % loop.index %} <td>{{ wtf.form_field(form[qty]) }}</td>
+        {% set price = 'price%03d' % loop.index %} <td>{{ wtf.form_field(form[price]) }}</td>
+        {% set value = 'value%03d' % loop.index %} <td>{{ wtf.form_field(form[value]) }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+  {{ form.submit() }}
+</form>
+{% endblock %}

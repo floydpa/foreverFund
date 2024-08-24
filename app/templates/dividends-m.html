@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% import "_macros.html" as macros %}
+
+{% block title %}MyPortfolio{% endblock %}
+
+{% block page_content %}
+<div class="page-header">
+    <h4>{{ title }}</h4>
+    <table class="table table-striped">
+    <tr>
+        <th>Month</th>
+        <th style="text-align:right">Prev Year</th>
+        <th style="text-align:right">Current Year</th>
+        <th style="text-align:right">Next Year</th>
+        <th style="text-align:right">Amount</th>
+    </tr>
+    {% for dividend in pagination.items %}
+        <tr>
+            {% if dividend.month is not none %}
+                <td>{{ dividend.month }}</td>
+            {% else %}
+                <td></td>
+            {% endif %}
+
+            {% if dividend.yprev is not none %}
+                <td style="text-align:right">{{ dividend.yprev }}</td>
+            {% else %}
+                <td></td>
+            {% endif %}
+
+            {% if dividend.ythis is not none %}
+                <td style="text-align:right">{{ dividend.ythis }}</td>
+            {% else %}
+                <td></td>
+            {% endif %}
+
+            {% if dividend.ynext is not none %}
+                <td style="text-align:right">{{ dividend.ynext }}</td>
+            {% else %}
+                <td></td>
+            {% endif %}
+
+            {% if dividend.value is not none %}
+                <td style="text-align:right">{{ dividend.value }}</td>
+            {% else %}
+                <td></td>
+            {% endif %}
+        </tr>
+    {% endfor %}
+    </table>
+</div>
+{{ macros.pagination_widget(pagination, prevPage, nextPage, endpoint) }}
+{% endblock %}

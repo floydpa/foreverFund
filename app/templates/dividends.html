@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% import "_macros.html" as macros %}
+
+{% block title %}MyPortfolio{% endblock %}
+
+{% block page_content %}
+<div class="page-header">
+    <h4>{{ title }}</h4>
+    <table class="table table-striped">
+    <tr>
+        <th>Year</th>
+        <th>Month</th>
+        <th>Date</th>
+        <th style="text-align:right">Amount</th>
+        <th>Security</th>
+        <th>Type</th>
+        <th>User</th>
+    </tr>
+    {% for dividend in pagination.items %}
+        <tr>
+            {% if dividend.year is not none %}
+                <td>{{ dividend.year }}</td>
+            {% else %}
+                <td></td>
+            {% endif %}
+
+            {% if dividend.month is not none %}
+                <td>{{ dividend.month }}</td>
+            {% else %}
+                <td></td>
+            {% endif %}
+
+            {% if dividend.date is not none %}
+                <td>{{ dividend.date }}</td>
+            {% else %}
+                <td></td>
+            {% endif %}
+
+            {% if dividend.value is not none %}
+                <td style="text-align:right">{{ dividend.value }}</td>
+            {% else %}
+                <td></td>
+            {% endif %}
+
+            {% if dividend.id is not none %}
+                <td><a href="/security/{{ dividend.id }}">{{ dividend.name }}</a></td>
+            {% else %}
+                <td>{{ dividend.name }}</td>
+            {% endif %}
+
+            <td>{{ dividend.acctype }}</td>
+            <td>{{ dividend.username }}</td>
+        </tr>
+    {% endfor %}
+    </table>
+</div>
+{{ macros.pagination_widget(pagination, prevPage, nextPage, endpoint) }}
+{% endblock %}

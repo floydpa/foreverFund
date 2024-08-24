@@ -1,0 +1,23 @@
+{% macro pagination_widget(pagination, prevPage, nextPage, endpoint) %}
+{% if pagination.page_count > 1 %}
+<div class="pagination">
+    <ul class="pagination">
+    <li{% if not pagination.has_prev %} class="disabled"{% endif %}>
+        <a href="{% if prevPage %}{{ prevPage }}{% else %}#{% endif %}">&laquo;</a>
+    </li>
+    {% for p in pagination.iter_pages() %}
+        {% if p %}
+            <li{% if p == pagination.page %} class="active"{% endif %}>
+                <a href="{{ url_for(endpoint, page = p) }}">{{ p }}</a>
+            </li>
+        {% else %}
+        <li class="disabled"><a href="#">&hellip;</a></li>
+        {% endif %}
+    {% endfor %}
+    <li{% if not pagination.has_next %} class="disabled"{% endif %}>
+        <a href="{% if nextPage %}{{ nextPage }}{% else %}#{% endif %}">&raquo;</a>
+    </li>
+</ul>
+</div>
+{% endif %}
+{% endmacro %}
