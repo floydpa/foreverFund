@@ -97,10 +97,11 @@ class UserPortfolio():
     # ====== String representation ======
 
     def __repr__(self):
-        s = ""
+        s = "UserPortfolio(%s\n"%self.username()
         for account in self.accounts():
-            a = "%s %s\n" % (self.username(), account)
+            a = "account(%s)\n" % (account)
             s += a
+        s += "\n)\n"
         return s
 
 
@@ -593,7 +594,7 @@ class UserPortfolioGroup():
         s = ""
         for user in self.users():
             pfolio = self.portfolio(user)
-            a = "%s %s\n" % (user, pfolio)
+            a = "UserPortGroup(\nuser=%s; pfolio=%s;\n)\n" % (user, pfolio)
             s += a
         return s
 
@@ -687,23 +688,34 @@ if __name__ == '__main__':
         return s
 
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
-    secu = SecurityUniverse()
-    pgrp = UserPortfolioGroup(secu)
+    
+    # Load details of all securities held in positions
+    secinfo_dir = os.getenv('HOME') + '/SecurityInfo'
+    secu  = SecurityUniverse(secinfo_dir)
+
+    # Initialise user portfolios
+    accinfo_dir = './tmp'
+    pgrp = UserPortfolioGroup(secu, accinfo_dir)
+
+    # For each user, the above does:
+    # UserPortfolio(secu, username, defn)
+    # ... and for each configured account ...
+    # Account(secu, self.username(), defn)
 
     # --- Unit Tests of functions
-    print("%.02f" % (pgrp.value('User1','ISA')))
-    # print("%.02f" % (pgrp.equity_value('User1','ISA')))
-    # print("%.02f" % (pgrp.bond_value('User1', 'ISA')))
-    # print("%.02f" % (pgrp.property_value('User1', 'ISA')))
-    # print("%.02f" % (pgrp.commodity_value('User1', 'ISA')))
-    # print("%.02f" % (pgrp.cash_value('User1', 'ISA')))
-    # print("%.02f" % (pgrp.annual_income(None,'ISA')))
+    print("value=%.02f" % (pgrp.value('Paul','ISA')))
+    print("equity=%.02f" % (pgrp.equity_value('Paul','ISA')))
+    print("bond=%.02f" % (pgrp.bond_value('Paul', 'ISA')))
+    print("property%.02f" % (pgrp.property_value('Paul', 'ISA')))
+    print("commodity=%.02f" % (pgrp.commodity_value('Paul', 'ISA')))
+    print("cash=%.02f" % (pgrp.cash_value('Paul', 'ISA')))
+    print("income=%.02f" % (pgrp.annual_income(None,'ISA')))
 
     # --- Account level asset/income values
-    # print(repr_account_asset_value(pgrp, None, None))
-    # print(repr_account_annual_income(pgrp, None, 'ISA'))
-    # print(repr_tdl(pgrp.tdl_account_asset_value('User2', 'ISA')))
-    # print(repr_tdl(pgrp.tdl_account_annual_income('User2', 'ISA')))
+    print(repr_account_asset_value(pgrp, None, None))
+    print(repr_account_annual_income(pgrp, None, 'ISA'))
+    print(repr_tdl(pgrp.tdl_account_asset_value('Paul', 'ISA')))
+    print(repr_tdl(pgrp.tdl_account_annual_income('Paul', 'ISA')))
 
     # --- Position level asset/income values
     # print(repr_tdl(pgrp.tdl_position_asset_value('User2','ISA')))
@@ -725,8 +737,9 @@ if __name__ == '__main__':
     # for e in pgrp.tdl_dividend_mpayments('User2','ISA'):
     #     print(e)
 
-    # b = pgrp.parent_sector_breakdown(None,None)
-    # for k in b.keys():
-    #     print("%s=%.2f"%(k,b[k]))
+    print("Sector Breakdown")
+    b = pgrp.parent_sector_breakdown(None,None)
+    for k in b.keys():
+        print("%s=%.2f"%(k,b[k]))
 
 

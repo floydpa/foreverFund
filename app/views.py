@@ -12,6 +12,10 @@ from .forms import SimulationForm
 from .models import MyPage
 
 from PlatformClasses import platformCode_to_class
+from AccountClasses import AccountGroup
+
+from wb import GspreadAuth, WbIncome, WbSecMaster, WsByPosition
+from wb_bysecurity import WsDividendsBySecurity, WsEstimatedIncome
 
 # ---------------------------------------------------------------------------------------
 # Function to render a paginated list on screen
@@ -69,7 +73,8 @@ def render_paginated_listn(html, all, endpoint, nitems, **kwargs):
 @app.route('/index')
 def index():
 
-    # Refresh accounts
+    # Refresh accounts (after picking up any security updates)
+    secu.refresh()
     uport.refresh(secu)
 
     # Remove 'webreport' keys to aid debugging
@@ -98,7 +103,8 @@ def index():
 def assets_by_account():
     title = "Portfolio Summary"
     all = uport.tdl_account_asset_value(session.get('ACCOUNT_NAME'), session.get('ACCOUNT_TYPE'))
-    return render_paginated_listn('portfolio.html', all, 'assets_by_account', 50, title=title, root="/assets")
+    assets = render_paginated_listn('portfolio.html', all, 'assets_by_account', 50, title=title, root="/assets")
+    return assets
 
 # ----------------------------------------------------------------------------------------------
 # Portfolio Annual Income
@@ -194,6 +200,53 @@ def income_by_position2():
     return render_paginated_listn('positions.html', all, 'income_by_position2', 50, title=title)
 
 
+# ---------------------------------------------------------------------------------------
+# Update worksheets within Google Workbooks
+# ---------------------------------------------------------------------------------------
+
+@app.route('/wbincome/bysecurity', methods=['GET','POST'])
+def wb_income_by_security():
+    logging.debug("wb_income_by_security() request=%s"%(request))
+    
+    gsauth = GspreadAuth()
+    ForeverIncome = WbIncome(gsauth)
+    SecurityMaster = WbSecMaster(gsauth)
+
+    bySecurity = WsDividendsBySecurity(ForeverIncome,SecurityMaster)
+    bySecurity.refresh()
+
+    return redirect(url_for('index'))
+
+@app.route('/wbincome/byposition', methods=['GET','POST'])
+def wb_income_by_position():
+    logging.debug("wb_income_by_position() request=%s"%(request))
+
+    ag = AccountGroup(uport.accounts(),None,None)
+
+    gsauth = GspreadAuth()
+    ForeverIncome = WbIncome(gsauth)
+
+    bypos = WsByPosition(ForeverIncome)
+    bypos.refresh(ag.positions())
+
+    return redirect(url_for('index'))
+
+@app.route('/wbincome/estimated', methods=['GET','POST'])
+def wb_estimated_income():
+    logging.debug("wb_estimated_income() request=%s"%(request))
+    
+    ag = AccountGroup(uport.accounts(),None,None)
+
+    gsauth = GspreadAuth()
+    ForeverIncome = WbIncome(gsauth)
+
+    estimatedIncome = WsEstimatedIncome(ForeverIncome)
+    estimatedIncome.projected_income(ag.positions(), secu)
+    estimatedIncome.refresh()
+
+    return redirect(url_for('index'))
+
+    
 # ---------------------------------------------------------------------------------------
 # Breakdown of assets
 # ---------------------------------------------------------------------------------------

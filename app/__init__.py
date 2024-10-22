@@ -1,4 +1,5 @@
 import sys, logging
+import pandas as pd
 from flask import Flask
 
 from flask_script import Manager
@@ -10,6 +11,8 @@ from SecurityClasses import SecurityUniverse
 from PortfolioClasses import UserPortfolioGroup
 
 from config import HMRC_PARAMS, SIM_PARAMS
+
+from wb import WbIncome
 
 
 app = Flask(__name__)
@@ -24,7 +27,7 @@ loglevel = 'DEBUG'
 
 numeric_level = getattr(logging, loglevel.upper(), None)
 if not isinstance(numeric_level, int):
-    raise ValueError('Invalid log level: %s' % args.loglevel)
+    raise ValueError('Invalid log level: %s' % numeric_level)
 logging.basicConfig(stream=sys.stderr, format='%(levelname)s:%(message)s', level=numeric_level)
 
 # --- Initialise list of securities
@@ -34,6 +37,7 @@ secu = SecurityUniverse(app.config['SECURITYINFO'])
 uport = UserPortfolioGroup(secu, app.config['ACCOUNTINFO'])
 
 logging.debug("User Portfolios for %s", uport.users())
+
 
 # --- Initialise simulation configuations
 class SimConfig:
@@ -89,3 +93,72 @@ class SimConfig:
 sim_conf = SimConfig()
 
 from app import views
+
+if __name__ == '__main__':
+
+    from AccountClasses import AccountGroup
+
+    from wb import GspreadAuth, WbIncome, WbSecMaster
+    from wb import WS_POSITION_INCOME
+
+    # Initialise 2 Google Workbooks
+    gsauth = GspreadAuth()
+    ForeverIncome = WbIncome(gsauth)
+    SecurityMaster = WbSecMaster(gsauth)
+
+    ag = AccountGroup(uport.accounts(),None,None)
+    logging.info("ag.accounts=%s\n"%ag.accounts())
+    logging.info("ag.positions=%s\n"%ag.positions())
+
+    pos_list = []
+
+    # Position detail
+    # Who	AccType	Platform	AccountId	SecurityId	Name	                        Quantity	Book Cost	Value (£)
+    # Paul	ISA	    II	        P_ISA_II	TMPL.L	    Temple Bar Investment Trust plc	11,972	    £20,000	    £31,905
+ 
+    for pos in ag.positions():
+        acc = pos.account()
+        acc_id = "%s_%s_%s" % (acc.usercode(), pos.platform(), pos.account_type())
+        p = {
+            'Who':          pos.username(),
+            'AccType':      pos.account_type(),
+            'Platform':     pos.platform(),
+            'AccountId':    acc_id,
+            'SecurityId':   pos.sname(),
+            'Name':         pos.lname(),
+            'Quantity':     pos.quantity(),
+            'BookCost':     pos.cost(),
+            'Value':        pos.value(),
+            'ValueDate':    pos.vdate()
+            }
+        print(p)
+        pos_list.append(p)
+    
+    df = pd.DataFrame(pos_list).sort_values(['Who','AccType','Platform','Value'],ascending=[True,True,True,False]).reset_index(drop=True)
+    # df['VLOOKUP Formula'] = df.index.to_series().apply(lambda x: f"=VLOOKUP(E{x + 2},'By Security'!$A:$B,2,FALSE)")
+    
+    # Use new df to add/update position income sheet
+    ForeverIncome = WbIncome()
+    ForeverIncome.df_to_worksheet(df, WS_POSITION_INCOME, 0, 4)
+
+    sheet = ForeverIncome.worksheet(WS_POSITION_INCOME)
+
+    # Add 4 columns of formulas with dividend & income information
+    formulas = []
+    formulas.append(['Dividend','Unit','Yield','Income'])
+    for r in range(2,len(df)+2):
+        divi = f"=VLOOKUP($E{r},'By Security'!$A:$E,4,FALSE)"
+        unit = f"=VLOOKUP($E{r},'By Security'!$A:$E,5,FALSE)"
+        yld  = f"=N{r}/I{r}"
+        inc  = f'=IF(L{r}="p",G{r},I{r})*K{r}/100'
+        row  = [divi,unit,yld,inc]
+        # sheet.update_cell(r, 11, f"=VLOOKUP($E{r},'By Security'!$A:$E,4,FALSE)")
+        formulas.append(row)
+
+    # Update the range with formulas
+    r = len(df)+1
+    cell_range = f"K1:N{r}"
+    # print(f"range={cell_range}")
+    # print(formulas)
+    sheet.update(cell_range, formulas, value_input_option='USER_ENTERED')
+    

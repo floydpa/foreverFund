@@ -2,16 +2,16 @@
 
 import pandas as pd
 import re
-import sys
-import os
+import sys, os
+import glob
 
 import logging
 import datetime
 
-from pathlib import Path
-
-from SecurityClasses import SecurityUniverse
 from PositionClasses import Position
+
+from wb import GspreadAuth, WbIncome, WbSecMaster
+
 
 def platformCode_to_class(code):
     return getattr(sys.modules[__name__], code)
@@ -38,9 +38,9 @@ class Platform:
         if summary_file is None:
             summary_file = self.latest_file(userCode,accountType)
         self.set_vdate(summary_file)
+        print("SUMMARY FILE %s", summary_file)
         df = pd.read_csv(summary_file)
-        # print(summary_file)
-        # print(df)
+        print("DATAFRAME:\n%s", df)
         labels = ['Investment', 'Quantity', 'Price', 'Value (£)']
         for n in range(0, len(df)):
             inv = df['Investment'][n]
@@ -48,9 +48,10 @@ class Platform:
             qty = float(re.sub(',', '', str(df['Quantity'][n])))
             price = float(df['Price'][n])
             value = float(re.sub(',', '', str(df['Value (£)'][n])))
+            cost  = value
 
             security = secu.find_security(sym)
-            pos = Position(security, qty, price, value, self.vdate())
+            pos = Position(security, qty, price, value, cost, self.vdate())
 
             # print("New Position=%s" % (pos))
             positions.append(pos)
@@ -58,13 +59,20 @@ class Platform:
         return positions
 
     def download_dirname(self):
-        return "/mnt/chromeos/MyFiles/Downloads"
+        return "%s/Downloads" % (os.getenv('HOME'))
 
     def userdata_dirname(self):
         return "%s/UserData" % (os.getenv('HOME'))
     
     def download_filename(self, username, accountType):
         return None
+
+    def most_recent_download(self, pattern):
+        files = glob.glob(os.path.join(self.download_dirname(), pattern))
+        if not files:
+            return None
+        else:
+            return max(files, key=os.path.getmtime)
 
     def current_filename(self, userCode, accountType):
         destlink   = self.latest_file(userCode,accountType)
@@ -122,14 +130,25 @@ class Platform:
 
     def update_latest_link(self, downloadFile, destFile, destLink, removeSource=True):
         """Update the 'latest' link to point to the new file and remove downloaded file"""
-        os.unlink(destLink)
-        os.symlink(destFile, destLink)
-        logging.debug("symlink(%s,%s)" % (destFile, destLink))
+        original_directory = os.getcwd()
+        target_directory   = os.path.dirname(destFile)
+        target_filename    = os.path.basename(destFile)
+        try:
+            os.chdir(target_directory)
+            os.unlink(destLink)
+            os.symlink(target_filename, destLink)
+            logging.debug("symlink(%s:%s,%s)" % (target_directory, target_filename, destLink))
 
-        # Finally remove the source file which had been downloaded
-        if removeSource:
-            logging.debug("unlink(%s)" % (downloadFile))
-            os.unlink(downloadFile)
+            # Finally remove the source file which had been downloaded
+            if removeSource:
+                logging.debug("unlink(%s)" % (downloadFile))
+                os.unlink(downloadFile)
+
+        except OSError as e:
+            logging.error(f"Error: {e}")
+
+        finally:
+            os.chdir(original_directory)
 
     def __repr__(self):
         return "PLATFORM(%s,%s)" % (self.name(), self.name(True))
@@ -142,13 +161,10 @@ class AJB(Platform):
 
     def download_filename(self, userCode, accountType):
         logging.debug("download_filename(%s,%s)"%(userCode,accountType))
-        if userCode == 'C' and accountType == 'ISA':
-            filename = "portfolio-AB9F2PI-ISA.csv"
-        elif userCode == 'P' and accountType == 'Pens':
-            filename = "portfolio-A20782S-SIPP.csv"
-        else:
-            filename = None
-        return "%s/%s" % (self.download_dirname(), filename) if filename else None
+        if accountType == 'Pens':
+            accountType = 'SIPP'
+        pattern = f"portfolio-*{accountType}.csv"
+        return self.most_recent_download(pattern)
 
     def download_formname(self):
         return "FileDownloadForm"
@@ -171,16 +187,17 @@ class AJB(Platform):
             else:
                 sym = inv
 
-            qty = float(re.sub(',', '', df['Quantity'][n]))
+            qty   = float(re.sub(',', '', df['Quantity'][n]))
             price = float(df['Price'][n]) * 100.0
             value = float(re.sub(',', '', df['Value (£)'][n]))
+            cost  = float(re.sub(',', '', df['Cost (£)'][n]))
 
             if sym in ('Cash GBP'):
                 security = secu.find_security('Cash')
             else:
                 security = secu.find_security(sym)
 
-            pos = Position(security, qty, price, value, self.vdate())
+            pos = Position(security, qty, price, value, cost, self.vdate())
             # print("New Position=%s" % (pos))
             positions.append(pos)
 
@@ -208,10 +225,153 @@ class AJB(Platform):
         self.update_latest_link(filename, destfile, destlink)
 
 
+class II(Platform):
+    def __init__(self):
+        Platform.__init__(self)
+        self._fullname = "Interactive Investor"
+        
+    def download_formname(self):
+        return "FileDownloadCashForm"
+
+    def download_filename(self, userCode, accountType):
+        """Return full path name of the file downloaded from II"""
+        logging.debug("download_filename(%s,%s)"%(userCode,accountType))
+        return self.most_recent_download("*.csv")
+    
+    def modify_download(self, userCode, accountType):
+        """Normalise file downloaded from II"""
+        # Get name of file downloaded from II
+        download_file = self.download_filename(userCode,accountType)
+        logging.debug("modify_download(%s,%s,%s)"%(download_file,userCode,accountType))
+
+        # Contents of downloaded file need various changes, so copy to new file
+        dt = datetime.datetime.now().strftime("%Y%m%d")
+        dest_file = "%s/%s_%s_%s_%s.csv" % (self.download_dirname(), userCode, accountType, self.name(), dt)
+
+        # Copy contents to a new file with some changes on the way
+        with open(download_file, 'r') as src, open(dest_file, 'w') as dst:
+            first_line_processed = False
+            for line in src:
+                # Strip strange characters before 'Symbol,Name,'
+                if not first_line_processed:
+                    if "Symbol,Name," in line:
+                        line = line.split("Symbol,Name,", 1)[1]  # Keep only after "Symbol,Name,"
+                        line = "Symbol,Name," + line  # Add the prefix back
+                    first_line_processed = True
+
+                # Skip lines starting with '""'
+                if not line.startswith('""'):
+                    dst.write(line)
+
+        os.unlink(download_file)
+
+        return dest_file
+
+    def update_positions(self, userCode, accountType, cashAmount):
+        """Construct dated UserData file from downloaded positions file"""
+        destfile = self.dated_file(userCode, accountType)
+        destlink = self.latest_file(userCode,accountType)
+        filename = self.modify_download(userCode, accountType)
+
+        logging.debug("source=%s" % (filename))
+        logging.debug("destfile=%s" % (destfile))
+        logging.debug("destlink=%s" % (destlink))
+
+        # Copy all lines across adding in cash on the final line
+        fpout = open(destfile, "w")
+        with open(filename, 'r', encoding='utf-8-sig') as fpin:
+            for line in fpin:
+                fpout.write(line)
+
+            line = '"Cash","Cash GBP","%.2f","1","","","£%.2f","£%.2f","£%.2f","","",""\n' % (cashAmount, cashAmount, cashAmount, cashAmount)
+            fpout.write(line)
+
+        fpout.close()
+        fpin.close()
+
+        # Update latest link to point to newly created file
+        # Remove the source file from the download area
+        self.update_latest_link(filename, destfile, destlink)
+
+    def load_positions(self, secu, userCode, accountType, summary_file=None):
+        positions = []
+        if summary_file is None:
+            summary_file = self.latest_file(userCode,accountType)
+        self.set_vdate(summary_file)
+        df = pd.read_csv(summary_file)
+        logging.debug("load_positions dtypes=%s"%df.dtypes)
+        # print(df.head(5))
+        # labels = ['Symbol', 'Qty', 'Price', 'Market Value']
+
+        for n in range(0, len(df)):
+            sym = df['Symbol'][n]
+            # print("Symbol=%s" % (sym))
+            qty = df['Qty'][n]
+            # print("Qty=%s" % (qty))
+            qty = float(re.sub(',', '', str(df['Qty'][n])))
+            if '£' in str(df['Price'][n]):
+                price = float(re.sub('[,£]', '', str(df['Price'][n]))) * 100.0
+            else:
+                price = float(re.sub('[,p]', '', str(df['Price'][n])))
+            s_value = df['Market Value'][n]
+            s_cost = df['Book Cost'][n]
+
+            value = float(re.sub('[,£]', '', s_value))
+            cost  = float(re.sub('[,£]', '', s_cost))
+
+            if sym in ('Cash GBP.L'):
+                security = secu.find_security('Cash')
+            else:
+                # Skip worthless positions from fractions of units
+                if value < 1.0:
+                    continue
+                security = secu.find_security(sym)
+
+            pos = Position(security, qty, price, value, cost, self.vdate())
+            # print("New Position=%s" % (pos))
+            positions.append(pos)
+
+        return positions
+
+
 class AV(Platform):
     def __init__(self):
         Platform.__init__(self)
         self._fullname = "Aviva"
+
+    def download_formname(self):
+        return "FileDownloadForm"
+    
+    def download_filename(self, userCode=None, accountType=None):
+        return "Created from Google Worksheet 'Aviva Pens'"
+
+    def update_positions(self, userCode, accountType):
+        destfile = self.dated_file(userCode, accountType)
+        destlink = self.latest_file(userCode,accountType)
+
+        # --- Initialise connection to 2 Google Workbooks
+        gsauth = GspreadAuth()
+        ForeverIncome = WbIncome(gsauth)
+        SecurityMaster = WbSecMaster(gsauth)
+
+        # --- Create a download file of Aviva positions
+        filename = ForeverIncome.create_aviva_download_file(SecurityMaster)
+
+        logging.debug("source=%s" % (filename))
+        logging.debug("destfile=%s" % (destfile))
+        logging.debug("destlink=%s" % (destlink))
+
+        # Copy all lines across
+        fpout = open(destfile, "w")
+        with open(filename, 'r', encoding='utf-8-sig') as fpin:
+            for line in fpin:
+                fpout.write(line)
+        fpout.close()
+        fpin.close()
+
+        # Update latest link to point to newly created file
+        # Remove the source file from the download area
+        self.update_latest_link(filename, destfile, destlink)
 
     def load_positions(self, secu, userCode, accountType, summary_file=None):
         positions = []
@@ -225,304 +385,19 @@ class AV(Platform):
             sym = df['Symbol'][n]
             # print("SYM=%s" % (sym))
             qty = float(re.sub(',', '', str(df['Qty'][n])))
+            # Skip zero quantity positions
+            if qty == 0.0:
+                continue
             price = float(re.sub('[,p]', '', str(df['Price'][n])))
             mv = df['Market Value'][n]
             value = float(re.sub('[,£]', '', mv))
+            cost = value
             security = secu.find_security(sym)
-            pos = Position(security, qty, price, value, self.vdate())
+            pos = Position(security, qty, price, value, cost, self.vdate())
             # print("New Position=%s" % (pos))
             positions.append(pos)
 
         return positions
-
-    def download_formname(self):
-        return "getPositionsForm"
-
-
-class BI(Platform):
-    def __init__(self):
-        Platform.__init__(self)
-        self._fullname = "Bestinvest"
-
-    def load_positions(self, secu, userCode, accountType, summary_file=None):
-        positions = []
-        if summary_file is None:
-            summary_file = self.latest_file(userCode,accountType)
-        self.set_vdate(summary_file)
-        df = pd.read_csv(summary_file)
-        # print(df)
-        labels = ['Name', 'Unit', 'Price', 'Change', 'Value']
-
-        for n in range(0, len(df)):
-            name = df['Name'][n]
-            qty = float(re.sub(',', '', str(df['Unit'][n])))
-            price = float(re.sub('[,p]', '', str(df['Price'][n])))
-            mv = df['Value'][n]
-            value = float(re.sub('[,£�]', '', mv))
-            # print("name=%s"%(name))
-            security = secu.find_security(name)
-            pos = Position(security, qty, price, value, self.vdate())
-            # print("New Position=%s" % (pos))
-            positions.append(pos)
-
-        return positions
-
-    def download_filename(self, username=None, accountType=None):
-        return "%s/SIPP_-_NAME_Summary_NAME.csv" % (self.download_dirname())
-
-    def download_formname(self):
-        return "FileDownloadCashForm"
-
-    def update_positions(self, userCode, accountType, cashAmount):
-        destfile   = self.dated_file(userCode, accountType)
-        destlink   = self.latest_file(userCode,accountType)
-        sourcefile = self.download_filename(userCode,accountType)
-
-        logging.debug("src=%s dest=%s link=%s" % (sourcefile, destfile, destlink))
-
-        # Copy source excluding some header and footer lines
-        fpout = open(destfile, "w")
-        with open(sourcefile, 'r', encoding='windows-1252') as fpin:
-            outputline = False
-            linecount = 0
-            for line in fpin:
-                if linecount == 0 and "Name,Unit,Price," in line:
-                    line = "Name,Unit,Price,Change,Value,Cost,GainLoss,GainLoss%"
-                    outputline = True
-                if line.rstrip() == '':
-                    outputline = False
-                if outputline:
-                    tmp = "%s\n"%(line.rstrip())
-                    outline = re.sub(',,$','',tmp)
-                    fpout.write(outline)
-                    linecount += 1
-
-        # Finally append the cash amount and close files
-        line = 'Cash,%.2f,1,Change,%.2f,%.2f,GainLoss,GainLoss%%\n' % (cashAmount, cashAmount, cashAmount)
-        fpout.write(line)
-
-        fpout.close()
-        fpin.close()
-
-        # Update latest link to point to newly created file
-        # Remove the source file from the download area
-        self.update_latest_link(sourcefile, destfile, destlink)
-
-
-class HL(Platform):
-    def __init__(self):
-        Platform.__init__(self)
-        self._fullname = "Hargreaves Lansdown"
-
-    def load_positions(self, secu, userCode, accountType, summary_file=None):
-        positions = []
-        if summary_file is None:
-            summary_file = self.latest_file(userCode,accountType)
-        self.set_vdate(summary_file)
-        df = pd.read_csv(summary_file)
-        # print(df)
-        # labels = ["Code", "Stock", "Units held", "Price (pence)", "Value (£)"]
-        for n in range(0, len(df)):
-            code = df['Code'][n]
-            qty = float(re.sub(',', '', str(df['Units held'][n])))
-            price = float(re.sub('[,p]', '', str(df['Price (pence)'][n])))
-            mv = df['Value (£)'][n]
-            value = float(re.sub('[,£]', '', mv))
-            # print("name=%s"%(name))
-            security = secu.find_security(code)
-            pos = Position(security, qty, price, value,self.vdate())
-            # print("New Position=%s" % (pos))
-            positions.append(pos)
-
-        return positions
-
-    def download_filename(self, username=None, accountType=None):
-        return "%s/account-summary.csv" % (self.download_dirname())
-
-    def download_formname(self):
-        return "FileDownloadCashForm"
-
-    def update_positions(self, userCode, accountType, cashAmount):
-        destfile   = self.dated_file(userCode, accountType)
-        destlink   = self.latest_file(userCode,accountType)
-        sourcefile = self.download_filename(userCode,accountType)
-
-        logging.debug("src=%s dest=%s link=%s" % (sourcefile, destfile, destlink))
-
-        # Copy source excluding some header and footer lines
-        fpout = open(destfile, "w")
-        with open(sourcefile, 'r', encoding='windows-1252') as fpin:
-            outputline = False
-            for line in fpin:
-                if "Code,Stock,Units" in line:
-                    line='Code,Stock,Units held,Price (pence),Value (£),Cost (£),Gain/loss (£),Gain/loss (%),'
-                    outputline = True
-                if '","Totals",' in line:
-                    outputline = False
-                if outputline:
-                    # tmp = line.encode('utf-8')
-                    # tmp = line.encode('latin-1')
-                    # outline = "%s\n"%(tmp.rstrip())
-                    outline = "%s\n"%(line.rstrip())
-                    fpout.write(outline)
-
-        # Finally append the cash amount and close files
-        line = '"Cash","Cash GBP","%.2f","1","%.2f","%.2f","","",""\n' %(cashAmount, cashAmount, cashAmount)
-        fpout.write(line)
-
-        fpout.close()
-        fpin.close()
-
-        # Update latest link to point to newly created file
-        # Remove the source file from the download area
-        self.update_latest_link(sourcefile, destfile, destlink)
-
-
-
-class II(Platform):
-    def __init__(self):
-        Platform.__init__(self)
-        self._fullname = "Interactive Investor"
-
-    def download_filename(self, userCode, accountType):
-        dt = datetime.datetime.now().strftime("%Y%m%d")
-        destname = "%s/%s_%s_%s_%s.csv" % (self.download_dirname(), userCode, self.name(), accountType, dt)
-
-        # Get list of files in download directory, newest first
-        paths = sorted(Path(self.download_dirname()).iterdir(), key=os.path.getmtime, reverse=True)
-        for f in paths:
-            print("downloaded file=", f)
-            # if re.search('^.*\.csv$', f):
-            #     print("csvfile=", f)
-            print("destname=", destname)
-            os.rename(f, destname)
-            break
-
-        return destname
-
-    def download_formname(self):
-        return "FileDownloadCashForm"
-
-    def load_positions(self, secu, userCode, accountType, summary_file=None):
-        positions = []
-        if summary_file is None:
-            summary_file = self.latest_file(userCode,accountType)
-        self.set_vdate(summary_file)
-        df = pd.read_csv(summary_file)
-        # print(df.head(5))
-        labels = ['Symbol', 'Qty', 'Price', 'Market Value']
-
-        for n in range(0, len(df)):
-            sym = df['Symbol'][n]
-            # print("Symbol=%s" % (sym))
-            qty = df['Qty'][n]
-            # print("Qty=%s" % (qty))
-            qty = float(re.sub(',', '', str(df['Qty'][n])))
-            if '£' in str(df['Price'][n]):
-                price = float(re.sub('[,£]', '', str(df['Price'][n]))) * 100.0
-            else:
-                price = float(re.sub('[,p]', '', str(df['Price'][n])))
-            mv = df['Market Value'][n]
-            value = float(re.sub('[,£]', '', mv))
-
-            if sym in ('Cash GBP.L'):
-                security = secu.find_security('Cash')
-            else:
-                security = secu.find_security(sym)
-
-            pos = Position(security, qty, price, value, self.vdate())
-            # print("New Position=%s" % (pos))
-            positions.append(pos)
-
-        return positions
-
-    def update_positions(self, userCode, accountType, cashAmount):
-        destfile = self.dated_file(userCode, accountType)
-        destlink = self.latest_file(userCode,accountType)
-        filename = self.download_filename(userCode,accountType)
-
-        logging.debug("source=%s" % (filename))
-        logging.debug("destfile=%s" % (destfile))
-        logging.debug("destlink=%s" % (destlink))
-
-        # Copy all lines across adding in cash on the final line
-        fpout = open(destfile, "w")
-        with open(filename, 'r', encoding='utf-8-sig') as fpin:
-            for line in fpin:
-                # Strip the leading feff characters from header line
-                if "Symbol," in line:
-                    line = 'Symbol,Name,Qty,Price,Change,Chg %,Market Value £,Market Value,Book Cost,Gain,Gain %,Average Price\n'
-                    line = re.sub('^.*Symbol,', 'Symbol,', line)
-
-                # Strip Totals lines at the end
-                if not re.match('"",', line):
-                    fpout.write(line)
-
-            line = '"Cash","Cash GBP","%.2f","1","","","%.2f","%.2f","","","",""\n' % (cashAmount, cashAmount, cashAmount)
-            fpout.write(line)
-
-        fpout.close()
-        fpin.close()
-
-        # Update latest link to point to newly created file
-        # Remove the source file from the download area
-        self.update_latest_link(filename, destfile, destlink)
-
-
-class CU(Platform):
-    def __init__(self):
-        Platform.__init__(self)
-        self._fullname = "Aviva CU"
-
-    def download_formname(self):
-        return "CashForm"
-    
-    def update_positions(self, userCode, accountType, cashAmount):
-        return self.update_savings(userCode, accountType, cashAmount)
-
-class FD(Platform):
-    def __init__(self):
-        Platform.__init__(self)
-        self._fullname = "First Direct"
-
-    def download_formname(self):
-        return "CashForm"
-
-    def update_positions(self, userCode, accountType, cashAmount):
-        return self.update_savings(userCode, accountType, cashAmount)
-
-class GSM(Platform):
-    def __init__(self):
-        Platform.__init__(self)
-        self._fullname = "Marcus"
-
-    def download_formname(self):
-        return "CashForm"
-
-    def update_positions(self, userCode, accountType, cashAmount):
-        return self.update_savings(userCode, accountType, cashAmount)
-
-class FSV(Platform):
-    def __init__(self):
-        Platform.__init__(self)
-        self._fullname = "First Savings Bank"
-
-    def download_formname(self):
-        return "CashForm"
-
-    def update_positions(self, userCode, accountType, cashAmount):
-        return self.update_savings(userCode, accountType, cashAmount)
-
-class CSB(Platform):
-    def __init__(self):
-        Platform.__init__(self)
-        self._fullname = "Charter Savings Bank"
-
-    def download_formname(self):
-        return "CashForm"
-
-    def update_positions(self, userCode, accountType, cashAmount):
-        return self.update_savings(userCode, accountType, cashAmount)
 
 
 class NPI(Platform):
@@ -536,10 +411,11 @@ class NPI(Platform):
     def update_positions(self, userCode, accountType, cashAmount):
         return self.update_savings(userCode, accountType, cashAmount)
 
-class NSI(Platform):
-    def __init__(self):
+
+class CashAccount(Platform):
+    def __init__(self, organisation):
         Platform.__init__(self)
-        self._fullname = "National Savings & Investments"
+        self._fullname = organisation
 
     def download_formname(self):
         return "CashForm"
@@ -547,34 +423,71 @@ class NSI(Platform):
     def update_positions(self, userCode, accountType, cashAmount):
         return self.update_savings(userCode, accountType, cashAmount)
 
-class NW(Platform):
+class GSM(CashAccount):
     def __init__(self):
-        Platform.__init__(self)
-        self._fullname = "Nationwide"
+        CashAccount.__init__(self, "Marcus")
 
-    def download_formname(self):
-        return "CashForm"
+class FSB(CashAccount):
+    def __init__(self):
+        CashAccount.__init__(self, "First Savings Bank")
 
-    def update_positions(self, userCode, accountType, cashAmount):
-        return self.update_savings(userCode, accountType, cashAmount)
+class CSB(CashAccount):
+    def __init__(self):
+        CashAccount.__init__(self, "Charter Savings Bank")
+
+class NW(CashAccount):
+    def __init__(self):
+        CashAccount.__init__(self, "Nationwide")
+
+class FD(CashAccount):
+    def __init__(self):
+        CashAccount.__init__(self, "First Direct")
+
+class NSI(CashAccount):
+    def __init__(self):
+        CashAccount.__init__(self, "National Savings & Investments")
+
+class CU(CashAccount):
+    def __init__(self):
+        CashAccount.__init__(self, "Aviva CU")
+
 
 if __name__ == '__main__':
-    logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
-    secu  = SecurityUniverse()
-    # uport = UserPortfolios(secu)
+    
+    from SecurityClasses import SecurityUniverse
 
-    # p = II()
-    # print(p.name(True))
-    # print(p.latest_file('A','ISA'))
-    # p.update_positions('B','ISA',3098.06)
-    # p.update_positions('A', 'Pens', 30377.10)
-    # p.update_positions('B', 'Trd', 4141.29)
+    logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+    
+    # Load details of all securities held in positions
+    secinfo_dir = os.getenv('HOME') + '/SecurityInfo'
+    secu = SecurityUniverse(secinfo_dir)
+
+    # uport = UserPortfolios(secu)
  
-    # a = platformCode_to_class('NW')()
+    # a = platformCode_to_class('AJB')()
     # print(a.name())
 
-    # p = HL()
-    # p.update_positions('A','Trd',29.29)
-    p = BI()
-    p.update_positions('B','Pens',3568.77)
+    # p = AJB()
+    # print(p.download_filename('P', 'ISA'))
+
+    p = GSM()
+    p = NW()
+    p = FSB()
+    p = CSB()
+    print(p.latest_file('C','Sav'))
+    for pos in p.load_positions(secu, 'C', 'Sav'):
+        print (pos)
+
+    p = CU()
+    print(p.latest_file('C','Pens'))
+    for pos in p.load_positions(secu, 'C', 'Pens'):
+        print (pos)
+
+    p = NSI()
+    p = FD()
+    print(p.latest_file('P','Sav'))
+    for pos in p.load_positions(secu, 'P', 'Sav'):
+        print (pos)
+
+
 

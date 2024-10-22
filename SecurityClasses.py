@@ -1,7 +1,7 @@
 # Define classes for handling the different types of securities
 
 import os
-import datetime
+from datetime import datetime, timedelta
 import time
 import json
 import logging
@@ -13,20 +13,29 @@ class SecurityUniverse():
         # self._rootdir = os.getenv('HOME') + '/SecurityInfo'
         self._rootdir = SecurityInfoDir
         logging.debug("SecurityUniverse(%s)"%(SecurityInfoDir))
+        self.refresh()
+
+    def refresh(self):
         self._securities = {}
         self._aliases = {}
-        for name in os.listdir(self._rootdir):
-            full_path = self._rootdir + '/' + name
+        for filename in os.listdir(self._rootdir):
+            full_path = self._rootdir + '/' + filename
             if os.path.isdir(full_path):
                 continue
-            s = self.load_security(full_path)
-            self.add_security(name, s)
-            if s.ISIN():
-                self.add_alias(s.ISIN(), name)
-            if s.SEDOL():
-                self.add_alias(s.SEDOL(), name)
-            if s.alias():
-                self.add_alias(s.alias(), name)
+            sec = self.load_security(full_path)
+            self.add_security(sec.sname(), sec)
+            if sec.ISIN():
+                self.add_alias(sec.ISIN(), sec.sname())
+            if sec.SEDOL():
+                self.add_alias(sec.SEDOL(),sec.sname())
+            if sec.alias():
+                self.add_alias(sec.alias(), sec.sname())
+        
+    def securities(self):    
+        return self._securities
+    
+    def aliases(self):
+        return self._aliases
 
     def add_security(self, name, defn):
         self._securities[name] = defn
@@ -76,6 +85,8 @@ class SecurityUniverse():
             secname = self._aliases[name]
             return (self._securities[secname])
         else:
+            print("security_names=%s"%(self.security_names()))
+            print("alias_names=%s"%(self.alias_names()))
             errstr = "ERROR: Security lookup(%s)" % (name)
             assert False, errstr
 
@@ -99,7 +110,7 @@ class Security:
         self._stale = False
 
         try:
-            now = datetime.datetime.now()
+            now = datetime.now()
             one_year_ago = "%04d%02d%02d" % (now.year-1, now.month, now.day)
             for d in self._data['divis']['prev']:
                 if d['payment'] < one_year_ago or d['ex-div'] < one_year_ago:
@@ -128,8 +139,8 @@ class Security:
         freq = self.payout_frequency()
         paydate = self.divi_paydate()
         if freq == 'M' and paydate:
-            year = datetime.datetime.today().year
-            month = datetime.datetime.today().month
+            year = datetime.today().year
+            month = datetime.today().month
             for i in range(12):
                 dt = "%4d%02d%02d"%(year,month,paydate)
                 tag = "month%02d"%(month)
@@ -174,6 +185,61 @@ class Security:
                     payments[d['payment']] = self.price() * self.fund_period_yield() / 100.0
         return payments
 
+    # Return dict of projected dividend payments
+    def projected_dividends(self, end_projection=None):
+        if end_projection is None:
+            end_projection = datetime.today() + timedelta(weeks=13)
+        
+        projected = []
+        for divi in self.recent_divis():
+            dt = divi['payment']
+            dt_obj = datetime.strptime(dt, "%Y%m%d")
+            if dt_obj >= datetime.today():
+                div_type = " * "
+                div_date = dt
+            else:
+                # Assume same dividend will be paid in a year
+                try:
+                    dt_obj = dt_obj.replace(year=dt_obj.year + 1)
+                except ValueError:
+                    dt_obj = dt_obj.replace(month=2, day=28, year=dt_obj.year + 1)
+
+                if dt_obj < datetime.today() or dt_obj > end_projection:
+                    continue
+                
+                div_type = "Est"
+                div_date = dt_obj.strftime("%Y%m%d")
+
+            # Are previous dividends defined?
+            try:
+                prev = self._data['divis']['prev']
+            except:
+                prev = None
+
+            if prev is None:
+                unit = '%'
+            else:
+                try:
+                    unit = divi['unit']
+                except:
+                    unit = '%'
+
+            # Is the dividend calculated based on a yield (% of value) or price (qty * price)?
+            if unit == '%':
+                try:
+                    amount = self._data['fund-yield']
+                except:
+                    amount = 0.0
+            else:
+                try:
+                    amount = divi['amount']
+                except:
+                    amount = ''
+
+            projected.append({'type':div_type, 'payment':div_date, 'amount':amount, 'unit':unit})
+
+        return projected
+
     # Return dict of ex-div dates with amounts
     def dividend_declarations(self):
         payments = {}
@@ -205,7 +271,10 @@ class Security:
     def sec_yield(self):
         annual_amount = self.annual_dividend_amount()
         if annual_amount > 0.0:
-            yld = annual_amount * 100.0 / self.price()
+            try:
+                yld = annual_amount * 100.0 / self.price()
+            except:
+                yld = 0.0
         elif 'fund-yield' in self._data.keys():
             yld = self._data['fund-yield']
         else:
@@ -230,6 +299,9 @@ class Security:
             annual_amount = self.sec_yield() * self.price() / 100.0
         return annual_amount
 
+    def data(self):
+        return self._data
+    
     def sname(self):
         return self._data['sname']
 
@@ -354,8 +426,8 @@ class Security:
         if self.recent_divis():
             for d in self.recent_divis():
                 tag = "%s" % (d['tag'])
-                xdate = datetime.datetime.strptime(d['ex-div'], '%Y%m%d').strftime('%d-%b-%Y')
-                pdate = datetime.datetime.strptime(d['payment'], '%Y%m%d').strftime('%d-%b-%Y')
+                xdate = datetime.strptime(d['ex-div'], '%Y%m%d').strftime('%d-%b-%Y')
+                pdate = datetime.strptime(d['payment'], '%Y%m%d').strftime('%d-%b-%Y')
                 if 'amount' in d.keys():
                     value = "Ex-Dividend %s Payment %s Amount %.3f%s" % (xdate, pdate, d['amount'], d['unit'])
                 else:
@@ -382,7 +454,7 @@ class Security:
                 urls.append({'tag': "URL-%s"%(tag), 'value':self.info()[tag]})
             detail.append({'tag': "URL-list", 'value':urls})
 
-        mdate = datetime.datetime.strptime(self.mdate(), '%Y%m%d').strftime('%d-%b-%Y')
+        mdate = datetime.strptime(self.mdate(), '%Y%m%d').strftime('%d-%b-%Y')
         detail.append({'tag': 'Last Updated', 'value': mdate})
         detail.append({'tag': 'Stale', 'value': 'Yes' if self.is_stale() else 'No'})
 
@@ -454,10 +526,33 @@ class Cash(Security):
 # =========================================================================================
 
 if __name__ == '__main__':
+
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
-    secu  = SecurityUniverse()
+    
+    secinfo_dir = os.getenv('HOME') + '/SecurityInfo'
+    secu  = SecurityUniverse(secinfo_dir)
     # uport = UserPortfolios(secu)
 
-    for sec in secu.list_securities('IT'):
-        print("sec=%s" % (sec))
+    entries_to_remove = ('info', 'divis','mdate','annual-income','asset-allocation')
+    
     print()
+    lk = []
+    for sec in secu.securities():
+        print("sec=%s" % (sec))
+        defn = secu.find_security(sec).data()
+
+        # Get rid of unwanted tags
+        for k in entries_to_remove:
+            defn.pop(k, None)
+        
+        for k in defn.keys():
+            print("  %s=%s"%(k,defn[k]))
+            if k not in lk:
+                lk.append(k)
+
+    print()
+    print(lk)
+
+
+
+    

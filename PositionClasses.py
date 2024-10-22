@@ -1,14 +1,28 @@
 # Define classes for handling positions, accounts and portfolios
 import logging
+from datetime import datetime, timedelta
+from decimal import Decimal
+
 from Breakdown import SectorAllocation
 
+def truncate_decimal(value, decimal_places=2):
+    # Create a Decimal object from the input value
+    d = Decimal(value)
+    
+    # Shift decimal point right, truncate, then shift back left
+    truncated = d.quantize(Decimal(f'1.{"0" * decimal_places}'), rounding="ROUND_DOWN")
+    
+    return truncated
+
+
 class Position:
-    def __init__(self, security, quantity, price, value, vdate):
+    def __init__(self, security, quantity, price, value, cost, vdate):
         self._account = None
         self._security = security
         self._quantity = quantity
         self._price = price
         self._value = value
+        self._cost = cost
         self._vdate = vdate
         self._sa = SectorAllocation(security.sector(), value)
         security.set_price(price)
@@ -17,6 +31,9 @@ class Position:
 
     def set_account(self, account):
         self._account = account
+
+    def account(self):
+        return self._account
 
     def username(self):
         return self._account.username()
@@ -56,6 +73,9 @@ class Position:
 
     def value(self):
         return self._value
+
+    def cost(self):
+        return self._cost
 
     def vdate(self):
         return self._vdate
@@ -138,6 +158,38 @@ class Position:
                 payments[dt] += self.quantity() * dp[dt] / 100.0
 
         return payments
+
+    # Return dict of projected dividend payments
+    def projected_dividends(self, end_projection=None):
+        if end_projection is None:
+            end_projection = datetime.today() + timedelta(weeks=13)
+        
+        projected = []
+        # Actual payments in pounds sterling from position
+        dp = self.dividend_payments()
+        for dt in dp.keys():
+            dt_obj = datetime.strptime(dt, "%Y%m%d")
+            if dt_obj >= datetime.today():
+                div_type = " * "
+                div_date = dt
+            else:
+                # Assume same dividend will be paid in a year
+                try:
+                    dt_obj = dt_obj.replace(year=dt_obj.year + 1)
+                except ValueError:
+                    dt_obj = dt_obj.replace(month=2, day=28, year=dt_obj.year + 1)
+
+                if dt_obj < datetime.today() or dt_obj > end_projection:
+                    continue
+
+                div_type = "Est"
+                div_date = dt_obj.strftime("%Y%m%d")
+
+            amount = float(truncate_decimal(dp[dt]))
+            projected.append({'type':div_type, 'payment':div_date, 'amount':amount, 'unit':'£'})
+
+        return projected
+
 
     def __repr__(self):
         str = "%s %s %s %.2f %.2f" % (self.sname(), self.lname(), self.payout_frequency(), self.value(), self.annual_income())
