@@ -13,6 +13,7 @@ from .models import MyPage
 
 from PlatformClasses import platformCode_to_class
 from AccountClasses import AccountGroup
+from SecurityClasses import security_update_json
 
 from wb import GspreadAuth, WbIncome, WbSecMaster, WsByPosition
 from wb_bysecurity import WsDividendsBySecurity, WsEstimatedIncome
@@ -244,7 +245,7 @@ def wb_estimated_income():
     estimatedIncome.projected_income(ag.positions(), secu)
     estimatedIncome.refresh()
 
-    return redirect(url_for('index'))
+    return dividend_payments()
 
     
 # ---------------------------------------------------------------------------------------
@@ -354,6 +355,27 @@ def security(id):
 @app.route('/security', methods=['GET', 'POST'])
 def security_detail():
     id = session['SECURITY_ID']
+    s = secu.find_security(id)
+    all = s.tdl_security_detail()
+    return render_paginated_listn('security.html', all, 'security_detail', 50, title=s.lname())
+
+@app.route('/update/security/<id>', methods=['GET', 'POST'])
+def update_security(id):
+    session['SECURITY_ID'] = id
+    s = secu.find_security(id)
+
+    # Initialise connection to 2 Google Workbooks
+    gsauth = GspreadAuth()
+    ForeverIncome = WbIncome(gsauth)
+    SecurityMaster = WbSecMaster(gsauth)
+
+    # Update security json file from workbook
+    security_update_json(ForeverIncome, SecurityMaster, id)
+    
+    # Update in memory definition from new json file
+    secu.refresh()
+
+    # Show details of updated security
     s = secu.find_security(id)
     all = s.tdl_security_detail()
     return render_paginated_listn('security.html', all, 'security_detail', 50, title=s.lname())

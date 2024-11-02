@@ -1,12 +1,17 @@
 # Define classes for handling the different types of securities
 
-import os
+import os, logging
 from datetime import datetime, timedelta
 import time
-import json
-import logging
+import json, shutil
 
 from Breakdown import AssetAllocation, Breakdown
+
+from wb import GspreadAuth, WbIncome, WbSecMaster
+from wb import WS_SECURITY_INFO, WS_SECURITY_URLS
+
+from wb_bysecurity import WsDividendsBySecurity
+
 
 class SecurityUniverse():
     def __init__(self, SecurityInfoDir):
@@ -53,7 +58,9 @@ class SecurityUniverse():
         with open(full_path, 'r', encoding='utf-8-sig') as fp:
             try:
                 data = json.load(fp)
-                data['mdate'] = time.strftime('%Y%m%d', time.localtime(os.path.getmtime(full_path)))
+                file_mtime = time.localtime(os.path.getmtime(full_path))
+                data['mdate'] = time.strftime('%Y%m%d', file_mtime )
+                data['dmdate'] = time.strftime('%d-%b-%Y', file_mtime)
             except:
                 print("ERROR:%s" % (full_path))
                 exit(1)
@@ -316,6 +323,9 @@ class Security:
 
     def mdate(self):
         return self._data['mdate']
+    
+    def dmdate(self):
+        return self._data['dmdate']
 
     def ISIN(self):
         if 'ISIN' in self._data.keys():
@@ -388,6 +398,7 @@ class Security:
                  'name': self.lname(),
                  'structure': self.structure(),
                  'mdate': self.mdate(),
+                 'dmdate': self.dmdate(),
                  'stale': 'Yes' if self.is_stale() else 'No'
         }
 
@@ -460,6 +471,7 @@ class Security:
 
         return detail
 
+        
     def __repr__(self):
         str = "%s %s %s %s %.2f %.2f" % (self.sname(), self.lname(), self.structure(),
                                       self.payout_frequency(), self.annual_dividend(), self.sec_yield())
@@ -521,6 +533,56 @@ class Cash(Security):
             return 'A'
 
 
+#------------------------------------------------------------------------------
+# Update a json security file from SecurityMaster workbook
+#------------------------------------------------------------------------------
+
+def security_update_json(ForeverIncome, SecurityMaster, SecurityId):
+    logging.debug(f"security_update_json({SecurityId})")
+
+    # Base security definition
+    df = SecurityMaster.worksheet_to_df(WS_SECURITY_INFO)
+    records = df[(df['sname'] == SecurityId)].to_dict('records')
+    if len(records) < 1:
+        logging.debug(f"security_update_json: '{SecurityId}' not found")
+        return
+        
+    sec_info = records[0]
+    freq = sec_info['div-freq']
+    sec_info.pop('div-freq')
+    for tag in ['alias', 'SEDOL', 'fund-class']:
+        if sec_info[tag] is None or sec_info[tag] == "":
+            sec_info.pop(tag)
+
+    # Previous dividends
+    defn = sec_info
+    defn['divis'] = {}
+    defn['divis']['freq'] = freq
+
+    bySecurity = WsDividendsBySecurity(ForeverIncome, SecurityMaster)
+    prev = bySecurity.json_prev_divis(SecurityId)
+    if len(prev) > 0:
+        defn['divis']['prev'] = prev
+
+    # Add url information if present
+    df = SecurityMaster.worksheet_to_df(WS_SECURITY_URLS)
+    sec_urls = df[(df['SecurityId'] == SecurityId)].to_dict('records')
+    if len(sec_urls) > 0:
+        defn['info'] = {}
+        for u in sec_urls:
+            defn['info'][u['Platform']] = u['Url']
+
+    # Copy existing file in the Archive directory then recreate original
+    sec_dir = f"{os.getenv('HOME')}/SecurityInfo"
+    arc_dir = f"{sec_dir}/Archive"
+    sec_file = f"{sec_dir}/{SecurityId}.json"
+    arc_file = f"{arc_dir}/{SecurityId}.json"
+
+    shutil.copy(sec_file, arc_file)
+    with open(sec_file, 'w') as fp:
+        json.dump(defn, fp, indent=2)
+
+
 # =========================================================================================
 # Testing
 # =========================================================================================
@@ -529,29 +591,47 @@ if __name__ == '__main__':
 
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
     
-    secinfo_dir = os.getenv('HOME') + '/SecurityInfo'
-    secu  = SecurityUniverse(secinfo_dir)
-    # uport = UserPortfolios(secu)
+    #---------------------------------------------------------------------------------------------
+    # Use (updated) information in SecuityMaster workbook to update specific securities
+    #---------------------------------------------------------------------------------------------
 
-    entries_to_remove = ('info', 'divis','mdate','annual-income','asset-allocation')
+    if True:
+        # --- Initialise connection to 2 Google Workbooks
+        gsauth = GspreadAuth()
+        ForeverIncome = WbIncome(gsauth)
+        SecurityMaster = WbSecMaster(gsauth)
+
+        for SecurityId in ["BNKR","JCH"]:
+            security_update_json(ForeverIncome, SecurityMaster, SecurityId)
+
+    #---------------------------------------------------------------------------------------------
+    # Print information from all securities
+    #---------------------------------------------------------------------------------------------
+
+    if False:
+        secinfo_dir = os.getenv('HOME') + '/SecurityInfo'
+        secu  = SecurityUniverse(secinfo_dir)
+        # uport = UserPortfolios(secu)
+
+        entries_to_remove = ('info', 'divis','mdate','annual-income','asset-allocation')
     
-    print()
-    lk = []
-    for sec in secu.securities():
-        print("sec=%s" % (sec))
-        defn = secu.find_security(sec).data()
+        print()
+        lk = []
+        for sec in secu.securities():
+            print("sec=%s" % (sec))
+            defn = secu.find_security(sec).data()
 
-        # Get rid of unwanted tags
-        for k in entries_to_remove:
-            defn.pop(k, None)
+            # Get rid of unwanted tags
+            for k in entries_to_remove:
+                defn.pop(k, None)
         
-        for k in defn.keys():
-            print("  %s=%s"%(k,defn[k]))
-            if k not in lk:
-                lk.append(k)
+            for k in defn.keys():
+                print("  %s=%s"%(k,defn[k]))
+                if k not in lk:
+                    lk.append(k)
 
-    print()
-    print(lk)
+        print()
+        print(lk)
 
 
 

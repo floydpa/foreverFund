@@ -11,11 +11,17 @@
     <tr>
         <th>Security Name</th>
         <th>Structure</th>
+        <th>Last Update</th>
     </tr>
     {% for security in pagination.items %}
         <tr>
             <td><a href="/security/{{ security.id }}">{{ security.name }}</a></td>
             <td class="{% if security.stale == 'Yes' %}text-danger{% else %}text-primary{% endif %}">{{ security.structure }}</td>
+            {% if security.mdate is not none %}
+                <td>[<a href="/update/security/{{ security.id }}">{{ security.dmdate }}</a>]</td>
+            {% else %}
+                <td></td>
+            {% endif %}
         </tr>
     {% endfor %}
     </table>

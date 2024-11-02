@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from wb import Ws
 # Source dividend information
 from wb import WS_HL_DIVIDENDS, WS_FE_DIVIDENDS, WS_OTHER_DIVIDENDS
+
 # Sheets created/updated
 from wb import WS_SEC_DIVIDENDS_HL, WS_SEC_DIVIDENDS_FE
 from wb import WS_SEC_DIVIDENDS, WS_EST_INCOME
@@ -84,8 +85,10 @@ class WsDividendsHL(Ws):
         # Use str.extract() to split the 'value' column
         df[['Amount', 'Unit']] = df['Payment'].str.extract(r'([0-9\.]+)([a-zA-Z]+)')
 
-        # Convert 'Amount' column to float
+        # Treat 'Amount' as float and date columns as strings
         df['Amount'] = df['Amount'].astype(float)
+        df['ExDivDate'] = df['ExDivDate'].astype(str)
+        df['PaymentDate'] = df['PaymentDate'].astype(str)
 
         # Convert date columns from DD/MM/YYYY to YYYYMMDD as strings
         df['ExDivDate'] = df['ExDivDate'].str.replace(r'(\d{2})/(\d{2})/(\d{4})', r'\3\2\1', regex=True)
@@ -155,9 +158,12 @@ class WsDividendsFE(Ws):
 
     def normalise_divis(self):
         df = self.rawdata()
-        # Convert 'Amount' column to float
+        # Treat 'Scale' and 'DividendAmount' as float and date columns as strings
         df['Scale']  = df['Scale'].astype(float)
         df['Amount'] = df['DividendAmount'].astype(float)
+        df['ExDivDate'] = df['ExDivDate'].astype(str)
+        df['PaymentDate'] = df['PaymentDate'].astype(str)
+        
         # Some dividends (e.g. RL) are expressed in pence, so scale up
         df['Amount'] = df['Amount'] * df['Scale']
         # Convert to dividend in pence (from pounds)
@@ -403,3 +409,13 @@ class WsEstimatedIncome(Ws):
     def __repr__(self):
         return self.df()
     
+
+if __name__ == '__main__':
+
+    from wb import GspreadAuth, WbIncome, WbSecMaster
+
+    gsauth = GspreadAuth()
+    ForeverIncome = WbIncome(gsauth)
+    print(ForeverIncome)
+    SecurityMaster = WbSecMaster(gsauth)
+    print(SecurityMaster)

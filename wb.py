@@ -2,8 +2,7 @@
 # Main processing for the Google Sheets workbook
 #-----------------------------------------------------------------------
 
-import os
-import logging
+import os, logging
 import pandas as pd
 import csv
 import gspread
@@ -120,7 +119,8 @@ class WsSecInfo(Ws):
         df = df.replace({'None':None, 'nan':None})
 
         return df
-    
+
+
     # Apply formatting to newly created/updated sheet
     def apply_formatting(self):
         # Retrieve worksheet details for formatting requests
@@ -506,7 +506,6 @@ if __name__ == '__main__':
     ForeverIncome = WbIncome(gsauth)
     print(ForeverIncome)
     SecurityMaster = WbSecMaster(gsauth)
-    print(SecurityMaster)
 
     #---------------------------------------------------------------------------------------------
     # Consume Aviva pension information from Income workbook and create download file.
@@ -518,7 +517,7 @@ if __name__ == '__main__':
     # "154413","15,440.58","Aviva Pension BNY Mellon Multi-Asset Balanced FP","482.41p","£74,487.13"
     #---------------------------------------------------------------------------------------------
 
-    if True:
+    if False:
         ForeverIncome.create_aviva_download_file(SecurityMaster)
 
     if False:
