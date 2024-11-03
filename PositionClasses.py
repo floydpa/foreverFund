@@ -134,19 +134,6 @@ class Position:
     def annual_income(self):
         return self.quantity() * self._security.annual_dividend() / 100.0
 
-    def dividend_payments(self):
-        payments = {}
-        dp = self._security.dividend_payments()
-        logging.debug("dividend_payments(%s)=%s"%(self.sname(),dp))
-        if dp:
-            for dt in dp.keys():
-                if dt not in payments.keys():
-                    payments[dt] = 0.0
-
-                payments[dt] += self.quantity() * dp[dt] / 100.0
-
-        return payments
-
     def dividend_declarations(self):
         payments = {}
         dp = self._security.dividend_declarations()
@@ -159,36 +146,66 @@ class Position:
 
         return payments
 
+    def dividend_payments(self):
+        payments = {}
+        dp = self._security.dividend_payments()
+        logging.debug("dividend_payments(%s)=%s"%(self.sname(),dp))
+        if dp:
+            for dt in dp.keys():
+                if dt not in payments.keys():
+                    payments[dt] = 0.0
+
+                payments[dt] += self.quantity() * dp[dt] / 100.0
+
+        return payments
+    
     # Return dict of projected dividend payments
-    def projected_dividends(self, end_projection=None):
+    def dividend_projections(self, end_projection=None):
         if end_projection is None:
             end_projection = datetime.today() + timedelta(weeks=13)
-        
-        projected = []
-        # Actual payments in pounds sterling from position
-        dp = self.dividend_payments()
-        for dt in dp.keys():
-            dt_obj = datetime.strptime(dt, "%Y%m%d")
-            if dt_obj >= datetime.today():
-                div_type = " * "
-                div_date = dt
-            else:
-                # Assume same dividend will be paid in a year
-                try:
-                    dt_obj = dt_obj.replace(year=dt_obj.year + 1)
-                except ValueError:
-                    dt_obj = dt_obj.replace(month=2, day=28, year=dt_obj.year + 1)
 
-                if dt_obj < datetime.today() or dt_obj > end_projection:
-                    continue
+        projections = {}
+        dp = self._security.dividend_projections()
+        logging.debug("dividend_projections(%s)=%s"%(self.sname(),dp))
 
-                div_type = "Est"
-                div_date = dt_obj.strftime("%Y%m%d")
+        if dp:
+            for dt in dp.keys():
+                if dt not in projections.keys():
+                    projections[dt] = []
+                
+                # Calculate the amount for the position
+                if dp[dt]['unit'] == 'p':
+                    amount = float(truncate_decimal(self.quantity() * dp[dt]['amount'] / 100.0))
+                elif dp[dt]['unit'] == 'e': 
+                    amount = float(truncate_decimal(self.quantity() * dp[dt]['amount'] / 120.0))
+                elif dp[dt]['unit'] == '£':
+                    amount = float(truncate_decimal(self.quantity() * dp[dt]['amount']))
+                elif dp[dt]['unit'] == '%':
+                    annual_payout = self.value() * dp[dt]['amount'] / 100.0
+                    if dp[dt]['freq'] == 'Q':
+                        npayments = 4
+                    elif dp[dt]['freq'] == 'S':
+                        npayments = 2
+                    elif dp[dt]['freq'] == 'A':
+                        npayments = 1
+                    elif dp[dt]['freq'] == 'M':
+                        npayments = 12
+                    else:
+                        errstr = f"Bad freq={dp[dt]['freq']}"
+                        assert False, errstr  
 
-            amount = float(truncate_decimal(dp[dt]))
-            projected.append({'type':div_type, 'payment':div_date, 'amount':amount, 'unit':'£'})
+                    amount = float(truncate_decimal(annual_payout/npayments))
+                else:
+                    errstr = f"Bad unit={dp[dt]['unit']} status={dp[dt]['status']} amount={dp[dt]['amount']}"
+                    assert False, errstr               
 
-        return projected
+                projections[dt].append({
+                                        'status':dp[dt]['status'], 
+                                        'amount':amount, 
+                                        'unit':'£'
+                                        })
+                
+        return projections
 
 
     def __repr__(self):

@@ -76,6 +76,9 @@ class UserPortfolio():
 
     def dividend_payments(self, account_type=None, platform_name=None):
         return AccountGroup(self.accounts(), account_type, platform_name).dividend_payments()
+    
+    def dividend_projections(self, account_type=None, platform_name=None):
+        return AccountGroup(self.accounts(), account_type, platform_name).dividend_projections()
 
     def dividend_declarations(self, account_type=None, platform_name=None):
         return AccountGroup(self.accounts(), account_type, platform_name).dividend_declarations()
@@ -213,6 +216,18 @@ class UserPortfolioGroup():
         for u in self.users():
             if user is None or user == u:
                 dp = self.portfolio(u).dividend_payments(account_type, platform_name)
+                for dt in dp.keys():
+                    if dt not in payments.keys():
+                        payments[dt] = []
+                    for a in dp[dt]:
+                        payments[dt].append(a)
+        return payments
+
+    def dividend_projections(self, user=None, account_type=None, platform_name=None):
+        payments = {}
+        for u in self.users():
+            if user is None or user == u:
+                dp = self.portfolio(u).dividend_projections(account_type, platform_name)
                 for dt in dp.keys():
                     if dt not in payments.keys():
                         payments[dt] = []
@@ -441,6 +456,8 @@ class UserPortfolioGroup():
             events = self.dividend_payments(username, account_type, platform_name)
         elif fn in ("declarations", "mdeclarations"):
             events = self.dividend_declarations(username, account_type, platform_name)
+        elif fn in ("projections"):
+            events = self.dividend_projections(username, account_type, platform_name)
         else:
             assert False, "Unknown value for 'fn' (%s)" % (fn)
 
@@ -448,7 +465,7 @@ class UserPortfolioGroup():
         total = 0.0
 
         currentYear = currentMonth = None
-        for dt in sorted(events.keys(), reverse=True):
+        for dt in sorted(events.keys(), reverse=False):
             dispYear = dispMonth = None
             try:
                 divYear = datetime.datetime.strptime(dt, '%Y%m%d').strftime('%Y')
@@ -482,20 +499,34 @@ class UserPortfolioGroup():
                 else:
                     mtotals[currentMonth]['ythis'] += p['amount']
 
-                if fn in ("payments","declarations"):
+                if fn in ("payments","declarations","projections"):
+                    if 'status' in p.keys():
+                        status = p['status']
+                    else:
+                        status = ' * '
+
+                    if 'unit' in p.keys():
+                        unit = p['unit']
+                    else:
+                        unit = '£'
+
                     dlist.append({'year': dispYear, 'month': dispMonth,
                               'username': p['username'],
                               'acctype': p['acctype'],
                               'platform': p['platform'],
-                              'name': p['secname'], 'id': p['secid'],
-                              'value': strvalue, 'date': vdate})
+                              'name': p['secname'], 
+                              'id': p['secid'],
+                              'value': strvalue, 
+                              'status': status,
+                              'unit': unit,
+                              'date': vdate})
 
                     dispYear = dispMonth = None
 
         if fn in ("mpayments", "mdeclarations"):
             currentYear = None
             mdisplayed = {}
-            for mkey in sorted(ymtotals.keys(), reverse=True):
+            for mkey in sorted(ymtotals.keys(), reverse=False):
                 dispMonth = datetime.datetime.strptime(mkey, '%Y%m').strftime('%b')
                 dispYear  = datetime.datetime.strptime(mkey, '%Y%m').strftime('%Y')
                 if currentYear is None or dispYear != currentYear:
@@ -556,6 +587,10 @@ class UserPortfolioGroup():
     def tdl_position_annual_income(self, username=None, account_type=None, platform_name=None):
         return self.tdl_position_general("income", username, account_type, platform_name)
 
+    # Dividend payments
+    def tdl_dividend_projections(self, username=None, account_type=None, platform_name=None):
+        return self.tdl_dividend_general("projections", username, account_type, platform_name)
+    
     # Dividend payments
     def tdl_dividend_payments(self, username=None, account_type=None, platform_name=None):
         return self.tdl_dividend_general("payments", username, account_type, platform_name)

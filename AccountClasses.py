@@ -75,6 +75,26 @@ class Account:
                                          'secid': pos.sname(), 'secname': pos.lname(), 'amount': dp[dt]})
         return payments
 
+    def dividend_projections(self):
+        projections = {}
+        for pos in self._positions:
+            dp = pos.dividend_projections()
+            if dp:
+                for dt in dp.keys():
+                    if dt not in projections.keys():
+                        projections[dt] = []
+                    for proj in dp[dt]:
+                        projections[dt].append({'username': self.username(), 
+                                            'acctype': self.account_type(True), 
+                                            'platform': self.platform(True),
+                                            'secid': pos.sname(), 
+                                            'secname': pos.lname(), 
+                                            'amount': proj['amount'],
+                                            'status': proj['status'],
+                                            'unit':   proj['unit']
+                                            })
+        return projections
+
     def dividend_declarations(self):
         payments = {}
         for pos in self._positions:
@@ -241,6 +261,8 @@ class AccountGroup():
                 dp = account.dividend_payments()
             elif info == 'DECLARATIONS':
                 dp = account.dividend_declarations()
+            elif info == 'PROJECTIONS':
+                dp = account.dividend_projections()
             else:
                 dp = None
                 assert True, "Unknown dividend info (%s)"%(info)
@@ -255,6 +277,9 @@ class AccountGroup():
 
     def dividend_payments(self):
         return self.dividend_info('PAYMENTS')
+    
+    def dividend_projections(self):
+        return self.dividend_info('PROJECTIONS')
 
     def dividend_declarations(self):
         return self.dividend_info('DECLARATIONS')

@@ -128,6 +128,12 @@ def dividend_declarations():
     all = uport.tdl_dividend_declarations(session.get('ACCOUNT_NAME'), session.get('ACCOUNT_TYPE'))
     return render_paginated_list('dividends.html', all, 'dividend_declarations', title=title)
 
+@app.route('/dividend/projections', methods=['GET','POST'])
+def dividend_projections():
+    title = "Projected Dividemd Payments"
+    all = uport.tdl_dividend_projections(session.get('ACCOUNT_NAME'), session.get('ACCOUNT_TYPE'))
+    return render_paginated_list('dividends.html', all, 'dividend_projections', title=title)
+
 @app.route('/dividend/payments', methods=['GET','POST'])
 def dividend_payments():
     title = "Dividend Payments"
@@ -245,7 +251,7 @@ def wb_estimated_income():
     estimatedIncome.projected_income(ag.positions(), secu)
     estimatedIncome.refresh()
 
-    return dividend_payments()
+    return dividend_projections()
 
     
 # ---------------------------------------------------------------------------------------

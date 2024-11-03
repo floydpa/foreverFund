@@ -13,6 +13,7 @@
         <th>Month</th>
         <th>Date</th>
         <th style="text-align:right">Amount</th>
+        <th style="text-align:center">Status</th>
         <th>Security</th>
         <th>Type</th>
         <th>User</th>
@@ -39,6 +40,12 @@
 
             {% if dividend.value is not none %}
                 <td style="text-align:right">{{ dividend.value }}</td>
+            {% else %}
+                <td></td>
+            {% endif %}
+
+            {% if dividend.status is not none %}
+                <td style="text-align:center">{{ dividend.status }}</td>
             {% else %}
                 <td></td>
             {% endif %}

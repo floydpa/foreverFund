@@ -175,7 +175,7 @@ class Security:
     # Payout frequency long name
     def freq_fullname(self):
         freq = self.payout_frequency()
-        fullnames = {'A':'Annually','H':'Half-Yearly','Q':'Quarterly','M':'Monthly'}
+        fullnames = {'A':'Annually','S':'Semi-Annually','Q':'Quarterly','M':'Monthly'}
         try:
             return fullnames[freq]
         except:
@@ -193,16 +193,16 @@ class Security:
         return payments
 
     # Return dict of projected dividend payments
-    def projected_dividends(self, end_projection=None):
+    def dividend_projections(self, end_projection=None):
         if end_projection is None:
             end_projection = datetime.today() + timedelta(weeks=13)
         
-        projected = []
+        projected = {}
         for divi in self.recent_divis():
             dt = divi['payment']
             dt_obj = datetime.strptime(dt, "%Y%m%d")
             if dt_obj >= datetime.today():
-                div_type = " * "
+                div_status = " * "
                 div_date = dt
             else:
                 # Assume same dividend will be paid in a year
@@ -210,12 +210,16 @@ class Security:
                     dt_obj = dt_obj.replace(year=dt_obj.year + 1)
                 except ValueError:
                     dt_obj = dt_obj.replace(month=2, day=28, year=dt_obj.year + 1)
-
-                if dt_obj < datetime.today() or dt_obj > end_projection:
-                    continue
                 
-                div_type = "Est"
+                # Advance date if Sat or Sun
+                while dt_obj.weekday() >= 5:
+                    dt_obj = dt_obj + timedelta(days=1)
+
+                div_status = "Est"
                 div_date = dt_obj.strftime("%Y%m%d")
+
+            if dt_obj < datetime.today() or dt_obj > end_projection:
+                continue
 
             # Are previous dividends defined?
             try:
@@ -243,7 +247,12 @@ class Security:
                 except:
                     amount = ''
 
-            projected.append({'type':div_type, 'payment':div_date, 'amount':amount, 'unit':unit})
+            projected[div_date] = {
+                'status':div_status, 
+                'amount':amount, 
+                'unit':unit, 
+                'freq': self.payout_frequency()
+                }
 
         return projected
 

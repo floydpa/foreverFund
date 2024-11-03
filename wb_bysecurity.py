@@ -20,7 +20,8 @@ from wb import WS_SEC_DIVIDENDS, WS_EST_INCOME
 
 from wb_format import fmt_req_font, fmt_req_autofilter
 from wb_format import fmt_req_autoresize, fmt_hdr_bgcolor
-from wb_format import fmt_columns_bgcolor, fmt_columns_decimal, fmt_columns_currency
+from wb_format import fmt_columns_bgcolor, fmt_columns_decimal 
+from wb_format import fmt_columns_currency, fmt_columns_hjustify
 from wb_format import RGB_GREY, RGB_BLUE, RGB_YELLOW
 
 
@@ -163,7 +164,7 @@ class WsDividendsFE(Ws):
         df['Amount'] = df['DividendAmount'].astype(float)
         df['ExDivDate'] = df['ExDivDate'].astype(str)
         df['PaymentDate'] = df['PaymentDate'].astype(str)
-        
+
         # Some dividends (e.g. RL) are expressed in pence, so scale up
         df['Amount'] = df['Amount'] * df['Scale']
         # Convert to dividend in pence (from pounds)
@@ -322,47 +323,52 @@ class WsEstimatedIncome(Ws):
             if acctype == 'Sav':
                 acctype = 'Savings'
 
-            for dp in pos.projected_dividends():
-                dt_obj = datetime.strptime(dp['payment'], "%Y%m%d")
-                tax_yend = datetime(dt_obj.year,4,5)
-                if dt_obj <= tax_yend:
-                    tax_year = dt_obj.year - 1
-                else:
-                    tax_year = dt_obj.year
-                s_tax_year = f"{tax_year}/{tax_year-2000+1}"
+            sec = secu.find_security(pos.sname())
 
-                sec = secu.find_security(pos.sname())
-                try:
-                    freq = sec.data()['divis']['freq']
-                except:
-                    freq = ""
+            projections = pos.dividend_projections()
+            sec_divis   = sec.dividend_projections()
 
-                divi_amount = ''
-                divi_unit   = ''
-                for divi in sec.projected_dividends():
-                    if dp['payment'] == divi['payment']:
-                        divi_amount = divi['amount']
-                        divi_unit   = divi['unit']
+            for dt in projections.keys():
+                for dp in projections[dt]:
+                    dt_obj = datetime.strptime(dt, "%Y%m%d")
+                    tax_yend = datetime(dt_obj.year,4,5)
+                    if dt_obj <= tax_yend:
+                        tax_year = dt_obj.year - 1
+                    else:
+                        tax_year = dt_obj.year
+                    s_tax_year = f"{tax_year}/{tax_year-2000+1}"
 
-                p = {
-                    'AccountId':    acc_id,
-                    'Year':         dt_obj.year,
-                    'Month':        dt_obj.month,
-                    'Day':          dt_obj.day,
-                    'Tax Year':     s_tax_year,
-                    'Who':          acc.username(),
-                    'Type':         acctype,                    
-                    'SecurityId':   pos.sname(),
-                    'Freq':         freq,
-                    'Quantity':     pos.quantity(),
-                    'Value':        pos.value(),
-                    'Yield':        divi_amount,
-                    'Unit':         divi_unit,
-                    'Amount':       dp['amount'],
-                    'Status':       dp['type']
-                }
+                    try:
+                        freq = sec.data()['divis']['freq']
+                    except:
+                        freq = ""
+
+                    divi_amount = ''
+                    divi_unit   = ''
+                    for sec_divi_dt in sec_divis.keys():
+                        if dt == sec_divi_dt:
+                            divi_amount = sec_divis[dt]['amount']
+                            divi_unit   = sec_divis[dt]['unit']
+
+                    p = {
+                        'AccountId':    acc_id,
+                        'Year':         dt_obj.year,
+                        'Month':        dt_obj.month,
+                        'Day':          dt_obj.day,
+                        'Tax Year':     s_tax_year,
+                        'Who':          acc.username(),
+                        'Type':         acctype,                    
+                        'SecurityId':   pos.sname(),
+                        'Freq':         freq,
+                        'Quantity':     pos.quantity(),
+                        'Value':        pos.value(),
+                        'Yield':        divi_amount,
+                        'Unit':         divi_unit,
+                        'Amount':       dp['amount'],
+                        'Status':       dp['status']
+                    }
             
-                self._projected.append(p)
+                    self._projected.append(p)
 
         # Create dataframe of full list of positions in sorted order
         self._df = pd.DataFrame(self._projected).sort_values(
@@ -390,6 +396,11 @@ class WsEstimatedIncome(Ws):
         requests.append(fmt_columns_currency(worksheet, 13, 14))
         # Step 6: Auto resize all columns to fit their content
         requests.append(fmt_req_autoresize(worksheet))
+        # Step 7: Centre justify B,C,D,E (1,2,3,4), I (8), M (12) and O (14)
+        requests.append(fmt_columns_hjustify(worksheet, 1, 5, 'CENTER'))
+        requests.append(fmt_columns_hjustify(worksheet, 8, 9, 'CENTER'))
+        requests.append(fmt_columns_hjustify(worksheet, 12, 13, 'CENTER'))
+        requests.append(fmt_columns_hjustify(worksheet, 14, 15, 'CENTER'))
 
         # Execute the requests
         response = self.wbinstance().service().spreadsheets().batchUpdate(
