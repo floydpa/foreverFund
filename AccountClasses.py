@@ -50,6 +50,7 @@ class Account:
     def account_type(self, fullname=False):
         names = {
             'Pens': "Pension",
+            'Drawdown': "Pension Drawdown",
             'ISA': "ISA",
             'Trd': "Trading",
             'Sav': "Savings"

@@ -6,6 +6,7 @@ import time
 import json, shutil
 
 from Breakdown import AssetAllocation, Breakdown
+from Breakdown import truncate_decimal, income_payments_per_year
 
 from wb import GspreadAuth, WbIncome, WbSecMaster
 from wb import WS_SECURITY_INFO, WS_SECURITY_URLS
@@ -133,29 +134,81 @@ class Security:
             return self._data['asset-allocation']
         except:
             return None
-
+        
     # Return list of recent dividend details. Could be empty.
+    # Dummy payments are only generated for monthly frequency
     def recent_divis(self):
         try:
             return self._data['divis']['prev']
         except:
             pass
 
-        # Genenate dummy payments
+        # Genenate dummy payments for this month and 11 previous months
         prev = []
         freq = self.payout_frequency()
         paydate = self.divi_paydate()
-        if freq == 'M' and paydate:
-            year = datetime.today().year
-            month = datetime.today().month
-            for i in range(12):
-                dt = "%4d%02d%02d"%(year,month,paydate)
-                tag = "month%02d"%(month)
-                prev.append({'tag':tag, 'ex-div':dt, 'payment':dt})
-                month -= 1
-                if month < 1:
-                    month = 12
-                    year -= 1
+        if freq != 'M' or paydate == 0:
+            return prev
+        
+        startdate = f"{self.divi_startdate()}"
+        lastdate  = f"{self.divi_lastdate()}"
+
+        start_obj = datetime.strptime(startdate, "%Y%m%d").replace(day=paydate)
+        last_obj  = datetime.strptime(lastdate, "%Y%m%d").replace(day=paydate)
+
+        logging.debug(f"recent_divis: init start_obj={start_obj} last_obj={last_obj}")
+
+        # Reset start to be no more than 12 months ago (Avoid 29-Feb issue)
+        yearago_obj = datetime.today().replace(day=paydate)
+        try:
+            yearago_obj = yearago_obj.replace(year=yearago_obj.year - 1)
+        except ValueError:
+            yearago_obj = yearago_obj.replace(month=2, day=28, year=yearago_obj.year - 1)
+
+        if start_obj < yearago_obj:
+            start_obj = yearago_obj
+
+        # The window goes out to the end date, but no more than 1 year ahead
+        yearahead_obj = start_obj
+        try:
+            yearahead_obj = yearahead_obj.replace(year=yearahead_obj.year + 1)
+        except ValueError:
+            yearahead_obj = yearahead_obj.replace(month=2, day=28, year=yearahead_obj.year + 1)
+
+        if last_obj > yearahead_obj:
+            last_obj = yearahead_obj
+
+        startdate = start_obj.strftime("%Y%m%d")
+        lastdate  = last_obj.strftime("%Y%m%d")
+
+        logging.debug(f"recent_divis: start={startdate} last={lastdate}")
+
+        # Step forward from the start date, one month at a time, not to exceed end date
+        
+        dt_obj = start_obj
+        for i in range(12):
+            # Get paydate and advance date if Sat or Sun
+            dt_obj = dt_obj.replace(day=paydate)
+            while dt_obj.weekday() >= 5:
+                dt_obj = dt_obj + timedelta(days=1)
+
+            year  = dt_obj.year
+            month = dt_obj.month
+            dt = dt_obj.strftime("%Y%m%d")
+
+            # Include payment in list if not before startdate
+            if dt >= lastdate:
+                continue
+
+            tag = "month%02d"%(month)
+            prev.append({'tag':tag, 'ex-div':dt, 'payment':dt})
+
+            # Step forward one month
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
+            dt_obj = dt_obj.replace(year=year,month=month,day=paydate)
 
         return prev
 
@@ -172,6 +225,24 @@ class Security:
         except:
             return 0
 
+    # Optional date when income payments started
+    def divi_startdate(self):
+        try:
+            return self._data['divis']['start-date']
+        except:
+            # Assume 1 year ago
+            start = datetime.today()
+            start = start.replace(year=start.year-1)
+            return start.strftime("%Y%m%d")
+        
+    # Optional date when income payments will end
+    def divi_lastdate(self):
+        try:
+            return self._data['divis']['end-date']
+        except:
+            # Assume end of cemtury
+            return "20991231"
+        
     # Payout frequency long name
     def freq_fullname(self):
         freq = self.payout_frequency()
@@ -186,26 +257,44 @@ class Security:
         payments = {}
         for d in self.recent_divis():
             if 'payment' in d.keys():
+                dt = d['payment']
+                if dt not in payments.keys():
+                    payments[dt] = []
                 if 'amount' in d.keys():
-                    payments[d['payment']] = d['amount']
+                    payments[dt].append(d['amount'])
                 else:
-                    payments[d['payment']] = self.price() * self.fund_period_yield() / 100.0
+                    try:
+                        annual_payout = float(self._data['annual-income']) * 100.0
+                        npayments = income_payments_per_year(self.payout_frequency())
+                        amount = float(truncate_decimal(annual_payout/npayments))
+                        payments[dt].append(amount)
+                    except:
+                        payments[dt].append(self.price() * self.fund_period_yield() / 100.0)
+
         return payments
 
     # Return dict of projected dividend payments
-    def dividend_projections(self, end_projection=None):
+    def dividend_projections(self, start_projection=None, end_projection=None):
+        if start_projection is None:
+            start_projection = datetime.today().replace(day=1)
         if end_projection is None:
-            end_projection = datetime.today() + timedelta(weeks=13)
-        
+            end_projection = start_projection + timedelta(weeks=13)
+  
+        # Reduce to date only by removing any time element
+        start_projection = start_projection.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_projection   = end_projection.replace(hour=0, minute=0, second=0, microsecond=0)
+        logging.debug(f"dividend_projections start={start_projection} end={end_projection}")
+
         projected = {}
         for divi in self.recent_divis():
             dt = divi['payment']
+            # logging.debug(f"dividend_projections dt={dt}")
             dt_obj = datetime.strptime(dt, "%Y%m%d")
-            if dt_obj >= datetime.today():
+            if dt_obj >= start_projection:
                 div_status = " * "
                 div_date = dt
             else:
-                # Assume same dividend will be paid in a year
+                # Assume same dividend will be paid in a year (avoid 29-Feb issue)
                 try:
                     dt_obj = dt_obj.replace(year=dt_obj.year + 1)
                 except ValueError:
@@ -218,41 +307,47 @@ class Security:
                 div_status = "Est"
                 div_date = dt_obj.strftime("%Y%m%d")
 
-            if dt_obj < datetime.today() or dt_obj > end_projection:
+            if dt_obj < start_projection or dt_obj > end_projection:
                 continue
 
-            # Are previous dividends defined?
+            # At this point we have a projected date, so what about the amount?
+
+            # See if a specific amount is defined
             try:
-                prev = self._data['divis']['prev']
+                amount = divi['amount']
+                unit   = divi['unit']
             except:
-                prev = None
-
-            if prev is None:
-                unit = '%'
-            else:
-                try:
-                    unit = divi['unit']
-                except:
-                    unit = '%'
-
-            # Is the dividend calculated based on a yield (% of value) or price (qty * price)?
-            if unit == '%':
+                amount = None
+                
+            # Work out from fund-yield if possible
+            if amount is None:
                 try:
                     amount = self._data['fund-yield']
+                    unit   = '%'
                 except:
-                    amount = 0.0
-            else:
+                    pass
+            
+            # Is an annual payout defined?
+            if amount is None:
                 try:
-                    amount = divi['amount']
+                    annual_payout = float(self._data['annual-income']) * 100.0
+                    unit = 'p'
+                    npayments = income_payments_per_year(self.payout_frequency())
+                    amount = float(truncate_decimal(annual_payout/npayments))
                 except:
-                    amount = ''
+                    pass
 
-            projected[div_date] = {
-                'status':div_status, 
-                'amount':amount, 
-                'unit':unit, 
-                'freq': self.payout_frequency()
+            if div_date not in projected.keys():
+                 projected[div_date] = []
+
+            projected[div_date].append(
+                {
+                    'status':div_status, 
+                    'amount':amount, 
+                    'unit':unit, 
+                    'freq': self.payout_frequency()
                 }
+            )
 
         return projected
 
@@ -261,18 +356,26 @@ class Security:
         payments = {}
         for d in self.recent_divis():
             if 'ex-div' in d.keys():
+                dt = d['ex-div']
+                if dt not in payments.keys():
+                    payments[dt] = []
                 if 'amount' in d.keys():
-                    payments[d['ex-div']] = d['amount']
+                    payments[dt].append(d['amount'])
                 else:
-                    payments[d['ex-div']] = self.price() * self.fund_period_yield() / 100.0
+                    payments[dt].append(self.price() * self.fund_period_yield() / 100.0)
+
         return payments
 
     # Sum of individual dividend paid in the last yesr
     def annual_dividend_amount(self):
-        amount = 0.0
-        for d in self.recent_divis():
-            if 'amount' in d.keys():
-                amount += d['amount']
+        try:
+            amount = float(self._data['annual-income']) * 100.0
+        except:
+            amount = 0.0
+            for d in self.recent_divis():
+                if 'amount' in d.keys():
+                    amount += d['amount']
+
         return amount
 
     # Unit of annual dividend, e.g. pence or cents
@@ -301,7 +404,7 @@ class Security:
     # Divide annual yield up equally between periods
     def fund_period_yield(self):
         freq = self.payout_frequency()
-        np = {'A':1,'H':2,'Q':4,'M':12}
+        np = {'A':1,'S':2,'Q':4,'M':12}
         try:
             nperiods = np[freq]
             return self.sec_yield()/nperiods
@@ -604,7 +707,7 @@ if __name__ == '__main__':
     # Use (updated) information in SecuityMaster workbook to update specific securities
     #---------------------------------------------------------------------------------------------
 
-    if True:
+    if False:
         # --- Initialise connection to 2 Google Workbooks
         gsauth = GspreadAuth()
         ForeverIncome = WbIncome(gsauth)
@@ -617,11 +720,29 @@ if __name__ == '__main__':
     # Print information from all securities
     #---------------------------------------------------------------------------------------------
 
-    if False:
+    if True:
         secinfo_dir = os.getenv('HOME') + '/SecurityInfo'
         secu  = SecurityUniverse(secinfo_dir)
         # uport = UserPortfolios(secu)
 
+        # defn = secu.find_security("TUI-DB").data()
+        # defn = secu.find_security("FSB-3Y110826-595").data()
+        # defn = secu.find_security("NW-18m201225-550").data()
+        defn = secu.find_security("NW-Loyalty").data()
+        sec = Security(defn)
+        
+        print(sec.annual_dividend())
+        print()
+        print(sec.recent_divis())
+        print()
+        print(sec.dividend_payments())
+        print()
+
+        start_date = datetime.today().replace(day=1)
+        end_date   = start_date + timedelta(weeks=13)
+        print(sec.dividend_projections(start_date, end_date))
+
+    if False:
         entries_to_remove = ('info', 'divis','mdate','annual-income','asset-allocation')
     
         print()

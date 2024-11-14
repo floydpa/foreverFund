@@ -24,10 +24,11 @@ class AccountNameForm(FlaskForm):
     submit  = SubmitField('OK')
 
 class AccountTypeForm(FlaskForm):
-    acctype = RadioField('Select type or ALL', choices=[('Pens','Pension Accounts'),
-                                                        ('ISA','ISA Accounts'),
+    acctype = RadioField('Select type or ALL', choices=[('ISA','ISA Accounts'),
                                                         ('Trd','Trading Accounts'),
-                                                        ('SavTrdISA', 'Non-Pension Accounts'),
+                                                        ('Drawdown','Pension Drawdown Accounts'),
+                                                        ('Pens','Pension Accounts'),
+                                                        ('SavTrdISADrawdown', 'Non-Pension Accounts'),
                                                         ('ALL','ALL')], default='ALL')
     submit  = SubmitField('OK')
 

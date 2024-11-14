@@ -1,18 +1,9 @@
 # Define classes for handling positions, accounts and portfolios
 import logging
 from datetime import datetime, timedelta
-from decimal import Decimal
 
 from Breakdown import SectorAllocation
-
-def truncate_decimal(value, decimal_places=2):
-    # Create a Decimal object from the input value
-    d = Decimal(value)
-    
-    # Shift decimal point right, truncate, then shift back left
-    truncated = d.quantize(Decimal(f'1.{"0" * decimal_places}'), rounding="ROUND_DOWN")
-    
-    return truncated
+from Breakdown import truncate_decimal, income_payments_per_year
 
 
 class Position:
@@ -142,7 +133,9 @@ class Position:
                 if dt not in payments.keys():
                     payments[dt] = 0.0
 
-                payments[dt] += self.quantity() * dp[dt] / 100.0
+                # One or more dividends for a specific date
+                for dtdp in dp[dt]:
+                    payments[dt] += self.quantity() * dtdp / 100.0
 
         return payments
 
@@ -155,17 +148,21 @@ class Position:
                 if dt not in payments.keys():
                     payments[dt] = 0.0
 
-                payments[dt] += self.quantity() * dp[dt] / 100.0
+                # One or more dividends for a specific date
+                for dtdp in dp[dt]:
+                    payments[dt] += self.quantity() * dtdp / 100.0
 
         return payments
     
     # Return dict of projected dividend payments
-    def dividend_projections(self, end_projection=None):
+    def dividend_projections(self, start_projection=None, end_projection=None):
+        if start_projection is None:
+            start_projection = datetime.today().replace(day=1)
         if end_projection is None:
-            end_projection = datetime.today() + timedelta(weeks=13)
+            end_projection = start_projection + timedelta(weeks=13)
 
         projections = {}
-        dp = self._security.dividend_projections()
+        dp = self._security.dividend_projections(start_projection, end_projection)
         logging.debug("dividend_projections(%s)=%s"%(self.sname(),dp))
 
         if dp:
@@ -173,34 +170,24 @@ class Position:
                 if dt not in projections.keys():
                     projections[dt] = []
                 
-                # Calculate the amount for the position
-                if dp[dt]['unit'] == 'p':
-                    amount = float(truncate_decimal(self.quantity() * dp[dt]['amount'] / 100.0))
-                elif dp[dt]['unit'] == 'e': 
-                    amount = float(truncate_decimal(self.quantity() * dp[dt]['amount'] / 120.0))
-                elif dp[dt]['unit'] == '£':
-                    amount = float(truncate_decimal(self.quantity() * dp[dt]['amount']))
-                elif dp[dt]['unit'] == '%':
-                    annual_payout = self.value() * dp[dt]['amount'] / 100.0
-                    if dp[dt]['freq'] == 'Q':
-                        npayments = 4
-                    elif dp[dt]['freq'] == 'S':
-                        npayments = 2
-                    elif dp[dt]['freq'] == 'A':
-                        npayments = 1
-                    elif dp[dt]['freq'] == 'M':
-                        npayments = 12
+                for dtdp in dp[dt]:
+                    # Calculate the amount for the position
+                    if dtdp['unit'] == 'p':
+                        amount = float(truncate_decimal(self.quantity() * dtdp['amount'] / 100.0))
+                    elif dtdp['unit'] == 'e': 
+                        amount = float(truncate_decimal(self.quantity() * dtdp['amount'] / 120.0))
+                    elif dtdp['unit'] == '£':
+                        amount = float(truncate_decimal(self.quantity() * dtdp['amount']))
+                    elif dtdp['unit'] == '%':
+                        annual_payout = self.value() * dtdp['amount'] / 100.0
+                        npayments = income_payments_per_year(dtdp['freq'])
+                        amount = float(truncate_decimal(annual_payout/npayments))
                     else:
-                        errstr = f"Bad freq={dp[dt]['freq']}"
-                        assert False, errstr  
+                        errstr = f"Bad unit={dtdp['unit']} status={dtdp['status']} amount={dtdp['amount']}"
+                        assert False, errstr               
 
-                    amount = float(truncate_decimal(annual_payout/npayments))
-                else:
-                    errstr = f"Bad unit={dp[dt]['unit']} status={dp[dt]['status']} amount={dp[dt]['amount']}"
-                    assert False, errstr               
-
-                projections[dt].append({
-                                        'status':dp[dt]['status'], 
+                    projections[dt].append({
+                                        'status':dtdp['status'], 
                                         'amount':amount, 
                                         'unit':'£'
                                         })
@@ -211,3 +198,63 @@ class Position:
     def __repr__(self):
         str = "%s %s %s %.2f %.2f" % (self.sname(), self.lname(), self.payout_frequency(), self.value(), self.annual_income())
         return str
+
+
+if __name__ == '__main__':
+    import os
+    from AccountClasses import AccountGroup
+    from PortfolioClasses import UserPortfolioGroup
+    from SecurityClasses import SecurityUniverse
+
+    logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+
+    # Load all security information
+    secinfo_dir = os.getenv('HOME') + '/SecurityInfo'
+    secu = SecurityUniverse(secinfo_dir)
+
+    # Load portfolios for all user accounts
+    accinfo_dir = os.getenv('HOME') + '/AccountInfo'
+    pgrp = UserPortfolioGroup(secu, accinfo_dir)
+    logging.info("\npgrp=%s\n"%pgrp)
+
+    ag = AccountGroup(pgrp.accounts(),None,None)
+    logging.info("ag.accounts=%s\n"%ag.accounts())
+    logging.info("ag.positions=%s\n"%ag.positions())
+
+    pos_list = []
+
+    # Position detail
+    # Who	AccType	Platform	AccountId	SecurityId	Name	                        Quantity	Book Cost	Value (£)
+    # Paul	ISA	    II	        P_ISA_II	TMPL.L	    Temple Bar Investment Trust plc	11,972	    £20,000	    £31,905
+ 
+    # sec = "TUI-DB"
+    # sec = "FSB-3Y110826-595"
+    # sec = "NW-18m201225-550"
+    sec = "NW-Loyalty"
+    for pos in ag.positions():
+        if pos.sname() != sec:
+            continue
+
+        if True:
+            print("dividend_payments")
+            print(pos.dividend_payments())
+            print()
+            print("dividend_projections")
+            print(pos.dividend_projections())
+
+        if False:
+            acc = pos.account()
+            acc_id = "%s_%s_%s" % (acc.usercode(), pos.platform(), pos.account_type())
+            p = {
+                'Who':          pos.username(),
+                'AccType':      pos.account_type(),
+                'Platform':     pos.platform(),
+                'AccountId':    acc_id,
+                'SecurityId':   pos.sname(),
+                'Name':         pos.lname(),
+                'Quantity':     pos.quantity(),
+                'BookCost':     pos.cost(),
+                'Value':        pos.value(),
+                'ValueDate':    pos.vdate()
+                }
+            print(p)

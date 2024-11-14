@@ -6,7 +6,7 @@
 # RGB values for cell fill colours
 
 RGB_BLUE   = {"red": 0.81, "green": 0.89, "blue": 0.95}
-RGB_YELLOW = {"red": 0.95, "green": 1.00, "blue": 0.80}
+RGB_YELLOW = {"red": 0.95, "green": 0.95, "blue": 0.80}
 RGB_GREY   = {"red": 0.80, "green": 0.80, "blue": 0.80}
 
 #------------------------------------------------------------------------------

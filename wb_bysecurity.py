@@ -44,6 +44,9 @@ def apply_formatting(forever_income, worksheet_name):
     requests.append(fmt_columns_bgcolor(worksheet,RGB_BLUE,2,3))
     # Step 6: Yellow fill colour for column 'OldestExDiv'
     requests.append(fmt_columns_bgcolor(worksheet,RGB_YELLOW,4,4))
+    # Step 7: Centre justify C (2) E (4)
+    requests.append(fmt_columns_hjustify(worksheet, 2, 3, 'CENTER'))
+    requests.append(fmt_columns_hjustify(worksheet, 4, 5, 'CENTER'))
 
     # Execute the requests
     response = forever_income.service().spreadsheets().batchUpdate(
@@ -281,15 +284,19 @@ class WsDividendsBySecurity(Ws):
 #-----------------------------------------------------------------------
 
 class WsEstimatedIncome(Ws):
-    def __init__(self, wbDestination, weeks=13):
+    def __init__(self, wbDestination, nWeeks=13):
         # Initialise based on workbook where sheet will be created
         Ws.__init__(self, wbDestination, WS_EST_INCOME)
 
-        # How far to project into the future
-        self._end_date = datetime.today() + timedelta(weeks)
+        # Use start of current month as basis then add 13/52 weeks to get end of window
+        self._start_date = datetime.today().replace(day=1)
+        self._end_date = self.start_date() + timedelta(weeks=nWeeks)
 
     def df(self):
         return self._df
+    
+    def start_date(self):
+        return self._start_date
     
     def end_date(self):
         return self._end_date
@@ -325,11 +332,13 @@ class WsEstimatedIncome(Ws):
 
             sec = secu.find_security(pos.sname())
 
-            projections = pos.dividend_projections()
-            sec_divis   = sec.dividend_projections()
+            projections = pos.dividend_projections(self.start_date(), self.end_date())
+            sec_divis   = sec.dividend_projections(self.start_date(), self.end_date())
 
             for dt in projections.keys():
+                # Multiple dividend payments per date
                 for dp in projections[dt]:
+                    logging.debug(f"--- {pos.sname()} dt={dt} dp={dp}")
                     dt_obj = datetime.strptime(dt, "%Y%m%d")
                     tax_yend = datetime(dt_obj.year,4,5)
                     if dt_obj <= tax_yend:
@@ -347,8 +356,9 @@ class WsEstimatedIncome(Ws):
                     divi_unit   = ''
                     for sec_divi_dt in sec_divis.keys():
                         if dt == sec_divi_dt:
-                            divi_amount = sec_divis[dt]['amount']
-                            divi_unit   = sec_divis[dt]['unit']
+                            for dtdp in sec_divis[dt]:
+                                divi_amount = dtdp['amount']
+                                divi_unit   = dtdp['unit']
 
                     p = {
                         'AccountId':    acc_id,
@@ -368,6 +378,8 @@ class WsEstimatedIncome(Ws):
                         'Status':       dp['status']
                     }
             
+                    logging.debug(f"---> {p}")
+
                     self._projected.append(p)
 
         # Create dataframe of full list of positions in sorted order
@@ -423,10 +435,26 @@ class WsEstimatedIncome(Ws):
 
 if __name__ == '__main__':
 
+    import os
     from wb import GspreadAuth, WbIncome, WbSecMaster
+
+    from SecurityClasses import SecurityUniverse
+    from AccountClasses import AccountGroup
+    from PortfolioClasses import UserPortfolioGroup
+
+    logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+
+    secu  = SecurityUniverse(os.getenv('HOME') + '/SecurityInfo')
+    uport = UserPortfolioGroup(secu, os.getenv('HOME') + '/AccountInfo')
+
+    ag = AccountGroup(uport.accounts(),None,None)
 
     gsauth = GspreadAuth()
     ForeverIncome = WbIncome(gsauth)
     print(ForeverIncome)
     SecurityMaster = WbSecMaster(gsauth)
     print(SecurityMaster)
+
+    ws = WsEstimatedIncome(ForeverIncome, nWeeks=52)
+    df = ws.projected_income(ag.positions(), secu)
+    print(df)

@@ -358,6 +358,9 @@ class UserPortfolioGroup():
 
             if fn == "value":
                 value = account.value()
+                # Don't include zero value accounts in the list
+                if value == 0.0:
+                    continue
             elif fn == "income":
                 value = account.annual_income()
             else:

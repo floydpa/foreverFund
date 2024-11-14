@@ -3,8 +3,30 @@ import re
 import json
 import logging
 
+from decimal import Decimal
+
 # ASSET CLASS BREAKDOWN (DD/MM/YYYY)
 # REGION BREAKDOWN (DD/MM/YYYY)
+
+def income_payments_per_year(freq):
+    np = {'A':1,'S':2,'Q':4,'M':12}
+    try:
+        npayments = np[freq]
+    except:
+        errstr = f"Bad freq={freq}"
+        assert False, errstr
+
+    return npayments
+
+def truncate_decimal(value, decimal_places=2):
+    # Create a Decimal object from the input value
+    d = Decimal(value)
+    
+    # Shift decimal point right, truncate, then shift back left
+    truncated = d.quantize(Decimal(f'1.{"0" * decimal_places}'), rounding="ROUND_DOWN")
+    
+    return truncated
+
 
 class Breakdown():
     def __init__(self,name):

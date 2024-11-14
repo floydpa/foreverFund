@@ -265,7 +265,7 @@ class WsByPosition(Ws):
     
         for pos in positions:
             acc = pos.account()
-            acc_id = "%s_%s_%s" % (acc.usercode(), pos.account_type(), pos.platform())
+            acc_id = "%s_%s_%s" % (acc.usercode(), pos.platform(), pos.account_type())
             p = {
                 'Who':          pos.username(),
                 'AccType':      pos.account_type(),

@@ -50,11 +50,14 @@
                         <li><a href="/dividend/projections">Dividend Projections</a></li>
                         <li><a href="/dividend/payments">Dividend Payments</a></li>
                         <li><a href="/dividend/mpayments">Monthly Payments</a></li>
+                        <!--
                         <li><a href="/dividend/declarations">Dividend Declarations</a></li>
                         <li><a href="/dividend/mdeclarations">Monthly Declarations</a></li>
+                        -->
                         <li><a href="/wbincome/bysecurity">Update Sheet - By Security</a></li>
                         <li><a href="/wbincome/byposition">Update Sheet - By Position</a></li>
-                        <li><a href="/wbincome/estimated">Update Sheet - Estimated Income</a></li>
+                        <li><a href="/wbincome/estimated_3m">Update Sheet - Estimated Income (3m)</a></li>
+                        <li><a href="/wbincome/estimated_1y">Update Sheet - Estimated Income (1y)</a></li>
                     </ul>
                 </li>
 
@@ -88,7 +91,9 @@
                     <ul class="dropdown-menu">
                         <li><a href="/settings/user">Account Name</a></li>
                         <li><a href="/settings/acctype">Account Type</a></li>
+                        <!--
                         <li><a href="/settings/platform">Platform Name</a></li>
+                        -->
                     </ul>
                 </li>
 
@@ -113,11 +118,13 @@
                 {% else %}
                     <li><a href="/settings/acctype">Type=ALL</a></li>
                 {% endif %}
+                <!--
                 {% if session["PLATFORM_NAME"] is not none %}
                     <li><a href="/settings/platform">Platform={{ session["PLATFORM_NAME"] }}</a></li>
                 {% else %}
                     <li><a href="/settings/platform">Platform=ALL</a></li>
                 {% endif %}
+                -->
             </ul>
         </div>
     </div>

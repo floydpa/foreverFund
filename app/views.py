@@ -130,7 +130,7 @@ def dividend_declarations():
 
 @app.route('/dividend/projections', methods=['GET','POST'])
 def dividend_projections():
-    title = "Projected Dividemd Payments"
+    title = "Projected Dividend Payments"
     all = uport.tdl_dividend_projections(session.get('ACCOUNT_NAME'), session.get('ACCOUNT_TYPE'))
     return render_paginated_list('dividends.html', all, 'dividend_projections', title=title)
 
@@ -238,16 +238,25 @@ def wb_income_by_position():
 
     return redirect(url_for('index'))
 
-@app.route('/wbincome/estimated', methods=['GET','POST'])
-def wb_estimated_income():
-    logging.debug("wb_estimated_income() request=%s"%(request))
-    
+@app.route('/wbincome/estimated_3m', methods=['GET','POST'])
+def wb_estimated_income_3m():
+    logging.debug("wb_estimated_income_3m() request=%s"%(request))
+
+    return wb_estimated_income(13)
+
+@app.route('/wbincome/estimated_1y', methods=['GET','POST'])
+def wb_estimated_income_1y():
+    logging.debug("wb_estimated_income_1y() request=%s"%(request))
+
+    return wb_estimated_income(52)
+
+def wb_estimated_income(nWeeks):  
     ag = AccountGroup(uport.accounts(),None,None)
 
     gsauth = GspreadAuth()
     ForeverIncome = WbIncome(gsauth)
 
-    estimatedIncome = WsEstimatedIncome(ForeverIncome)
+    estimatedIncome = WsEstimatedIncome(ForeverIncome, nWeeks)
     estimatedIncome.projected_income(ag.positions(), secu)
     estimatedIncome.refresh()
 

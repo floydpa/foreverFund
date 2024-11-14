@@ -451,6 +451,10 @@ class CU(CashAccount):
     def __init__(self):
         CashAccount.__init__(self, "Aviva CU")
 
+class TUI(CashAccount):
+    def __init__(self):
+        CashAccount.__init__(self, "TUI DB Pension")
+        
 
 if __name__ == '__main__':
     
