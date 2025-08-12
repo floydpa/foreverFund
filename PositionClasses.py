@@ -142,7 +142,7 @@ class Position:
     def dividend_payments(self):
         payments = {}
         dp = self._security.dividend_payments()
-        logging.debug("dividend_payments(%s)=%s"%(self.sname(),dp))
+        logging.debug(f"Position.dividend_payments({self.sname()})={dp}")
         if dp:
             for dt in dp.keys():
                 if dt not in payments.keys():
@@ -150,7 +150,9 @@ class Position:
 
                 # One or more dividends for a specific date
                 for dtdp in dp[dt]:
-                    payments[dt] += self.quantity() * dtdp / 100.0
+                    logging.debug(f"Position.dividend_payments({self.sname()}) qty={self.quantity()}")
+                    logging.debug(f"Position.dividend_payments({self.sname()}) dtdp={dtdp}")
+                    payments[dt] += self.quantity() * float(dtdp) / 100.0
 
         return payments
     
@@ -163,7 +165,7 @@ class Position:
 
         projections = {}
         dp = self._security.dividend_projections(start_projection, end_projection)
-        logging.debug("dividend_projections(%s)=%s"%(self.sname(),dp))
+        logging.debug("Position.dividend_projections(%s)=%s"%(self.sname(),dp))
 
         if dp:
             for dt in dp.keys():

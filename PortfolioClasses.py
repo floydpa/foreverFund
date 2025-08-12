@@ -61,6 +61,7 @@ class UserPortfolio():
 
     def add_account(self, secu, defn):
         if defn['status'] == 'active':
+            logging.debug(f"\n\n===== UserPortfolio.add_account({defn})")
             account = Account(secu, self.username(), defn)
             self._accounts.append(account)
 

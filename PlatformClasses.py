@@ -38,9 +38,9 @@ class Platform:
         if summary_file is None:
             summary_file = self.latest_file(userCode,accountType)
         self.set_vdate(summary_file)
-        print("SUMMARY FILE %s", summary_file)
+        logging.debug(f"\n\n---------- Platform SUMMARY FILE {summary_file} -----")
         df = pd.read_csv(summary_file)
-        print("DATAFRAME:\n%s", df)
+        logging.debug(f"DATAFRAME:\n{df}")
         labels = ['Investment', 'Quantity', 'Price', 'Value (£)']
         for n in range(0, len(df)):
             inv = df['Investment'][n]
@@ -454,6 +454,10 @@ class CU(CashAccount):
 class TUI(CashAccount):
     def __init__(self):
         CashAccount.__init__(self, "TUI DB Pension")
+
+class IIDD(CashAccount):
+    def __init__(self):
+        CashAccount.__init__(self, "II Pension Drawdown")
         
 
 if __name__ == '__main__':

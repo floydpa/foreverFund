@@ -356,7 +356,7 @@ class WsByPosition(Ws):
         for r in range(2,len(df)+2):
             divi = f"=VLOOKUP($E{r},'By Security'!$A:$E,4,FALSE)"
             unit = f"=VLOOKUP($E{r},'By Security'!$A:$E,5,FALSE)"
-            yld  = f"=N{r}/I{r}"
+            yld  = f"=IF(I{r}=0,0,N{r}/I{r})"
             inc  = f'=IF(L{r}="p",G{r},I{r})*K{r}/100'
             row  = [divi,unit,yld,inc]
             formulas.append(row)

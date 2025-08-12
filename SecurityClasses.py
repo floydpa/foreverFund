@@ -156,7 +156,7 @@ class Security:
         start_obj = datetime.strptime(startdate, "%Y%m%d").replace(day=paydate)
         last_obj  = datetime.strptime(lastdate, "%Y%m%d").replace(day=paydate)
 
-        logging.debug(f"recent_divis: init start_obj={start_obj} last_obj={last_obj}")
+        # logging.debug(f"recent_divis({self.sname()}): init start_obj={start_obj} last_obj={last_obj}")
 
         # Reset start to be no more than 12 months ago (Avoid 29-Feb issue)
         yearago_obj = datetime.today().replace(day=paydate)
@@ -181,7 +181,7 @@ class Security:
         startdate = start_obj.strftime("%Y%m%d")
         lastdate  = last_obj.strftime("%Y%m%d")
 
-        logging.debug(f"recent_divis: start={startdate} last={lastdate}")
+        # logging.debug(f"recent_divis({self.sname()}): start={startdate} last={lastdate}")
 
         # Step forward from the start date, one month at a time, not to exceed end date
         
@@ -209,6 +209,8 @@ class Security:
                 month = 1
                 year += 1
             dt_obj = dt_obj.replace(year=year,month=month,day=paydate)
+
+        # logging.debug(f"recent_divis({self.sname()}): prev={prev}")
 
         return prev
 
@@ -264,12 +266,24 @@ class Security:
                     payments[dt].append(d['amount'])
                 else:
                     try:
+                        # Securities with 'annual-income' are defined benefit.
+                        # Positions in these securities have quantity=100, so need to allow for this
+                        # However, dividend payments assumed in pence, so need to allow for this too
                         annual_payout = float(self._data['annual-income']) * 100.0
                         npayments = income_payments_per_year(self.payout_frequency())
-                        amount = float(truncate_decimal(annual_payout/npayments))
-                        payments[dt].append(amount)
+
+                        # add a fraction of a panny before the division to allow for rounding errors
+                        # as the number is rounded down by truncate_decimal
+                        amount = float((annual_payout + 0.1)/npayments)
                     except:
-                        payments[dt].append(self.price() * self.fund_period_yield() / 100.0)
+                        logging.debug("Security.price(%s)=%s"%(self.sname(),self.price()))
+                        logging.debug("Security.fund_period_yield(%s)=%s"%(self.sname(),self.fund_period_yield()))
+                        amount = self.price() * self.fund_period_yield()
+
+                    # Convert from p to £
+                    payments[dt].append(truncate_decimal(amount / 100.0))
+
+        logging.debug("Security.dividend_payments(%s)=%s"%(self.sname(),payments))
 
         return payments
 
@@ -330,7 +344,7 @@ class Security:
             # Is an annual payout defined?
             if amount is None:
                 try:
-                    annual_payout = float(self._data['annual-income']) * 100.0
+                    annual_payout = float(self._data['annual-income'])
                     unit = 'p'
                     npayments = income_payments_per_year(self.payout_frequency())
                     amount = float(truncate_decimal(annual_payout/npayments))
@@ -369,7 +383,8 @@ class Security:
     # Sum of individual dividend paid in the last yesr
     def annual_dividend_amount(self):
         try:
-            amount = float(self._data['annual-income']) * 100.0
+            # Return the amount from the config (defined in pounds)
+            amount = float(self._data['annual-income'])
         except:
             amount = 0.0
             for d in self.recent_divis():
@@ -730,7 +745,7 @@ if __name__ == '__main__':
         # defn = secu.find_security("NW-18m201225-550").data()
         defn = secu.find_security("NW-Loyalty").data()
         sec = Security(defn)
-        
+
         print(sec.annual_dividend())
         print()
         print(sec.recent_divis())

@@ -60,7 +60,7 @@ class Account:
     def annual_income(self):
         total = 0.0
         for pos in self._positions:
-            # print("INCOME pos=%s" % (pos))
+            logging.debug(f"Account.INCOME pos={pos}")
             total += pos.annual_income()
         return total
 
