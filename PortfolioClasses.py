@@ -98,6 +98,9 @@ class UserPortfolio():
     def parent_sector_breakdown(self, account_type=None, platform_name=None):
         return AccountGroup(self.accounts(), account_type, platform_name).parent_sector_breakdown()
 
+    def risk_breakdown(self, account_type=None, platform_name=None):
+        return AccountGroup(self.accounts(), account_type, platform_name).risk_breakdown()
+
     # ====== String representation ======
 
     def __repr__(self):
@@ -294,6 +297,17 @@ class UserPortfolioGroup():
                     brk[k] += b[k]
         return brk
 
+    def risk_breakdown(self, user=None, account_type=None, platform_name=None):
+        brk = {}
+        for u in self.users():
+            if user is None or user == u:
+                b = self.portfolio(u).risk_breakdown(account_type, platform_name)
+                for k in b.keys():
+                    if k not in brk.keys():
+                        brk[k] = 0.0
+                    brk[k] += b[k]
+        return brk
+
 
     # ====== Data ======
 
@@ -332,6 +346,16 @@ class UserPortfolioGroup():
         for k in b.keys():
             if k not in sl:
                 data[k] = b[k]
+
+        return data
+
+    def data_risk_split(self, user=None, account_type=None):
+        data = {}
+
+        data['Risk Bucket Allocation'] = 'Value'
+        b = self.risk_breakdown(user, account_type)
+        for k in b.keys():
+            data[k] = b[k]
 
         return data
 

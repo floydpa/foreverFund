@@ -275,3 +275,60 @@ class SectorAllocation():
         s = "%s (%s) = %.2f" % (self.sector(), self.parent_sector(), self.amount())
         return s
 
+class RiskAllocation():
+    def __init__(self, sector):
+        risk_bucket = {
+        "Asia Pacific Ex Japan": "High",
+        "Asia Pacific Income": "High",
+        "Asia Pacific Smaller Companies": "High",
+        "Banks": "High",
+        "Cash": "Cash",
+        "Commodities & Natural Resources": "High",
+        "Debt - Loans & Bonds": "Moderate",
+        "Europe": "High",
+        "Financials": "High",
+        "Flexible Investment": "Moderate",
+        "GBP Strategic Bond": "Moderate",
+        "Gbl ETF Equity - Europe ex UK": "High",
+        "Global": "High",
+        "Global Bonds": "Moderate",
+        "Global Equities": "High",
+        "Global Equity Income": "High",
+        "Global Property": "Moderate",
+        "Global Smaller Companies": "High",
+        "Infrastructure": "Moderate",
+        "Japanese Smaller Companies": "High",
+        "Latin America": "High",
+        "Mixed Investment 0-35% Shares": "Moderate",
+        "Mixed Investment 20-60% Shares": "Moderate",
+        "Mixed Investment 40-85% Shares": "High",
+        "Property": "Moderate",
+        "Property Securities": "Moderate",
+        "Property - UK Commercial": "Moderate",
+        "Real Estate Investment Trusts": "Moderate",
+        "Short Term Money Market": "Cash",
+        "Specialist": "High",
+        "Technology & Telecommunications": "High",
+        "UK All Companies": "High",
+        "UK Equity Income": "High",
+        "UK Smaller Companies": "High",
+        "USD Index Linked": "Moderate",
+        "With Profits": "Moderate"
+        }
+
+        if sector not in risk_bucket.keys():
+            errstr = "ERROR: RiskAllocation(%s) - sector not defined" % (sector)
+            assert False, errstr
+
+        self._sector = sector
+        self._risk_bucket = risk_bucket[sector]
+
+    def sector(self):
+        return self._sector
+
+    def risk_bucket(self):
+        return self._risk_bucket
+
+    def __repr__(self):
+        s = "%s = %s" % (self.sector(), self.risk_bucket())
+        return s

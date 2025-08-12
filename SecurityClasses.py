@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import time
 import json, shutil
 
-from Breakdown import AssetAllocation, Breakdown
+from Breakdown import AssetAllocation, Breakdown, RiskAllocation
 from Breakdown import truncate_decimal, income_payments_per_year
 
 from wb import GspreadAuth, WbIncome, WbSecMaster
@@ -114,6 +114,7 @@ class Security:
         self._data = data
         self.aa = AssetAllocation(self.sector(), 100.0, self.security_aa())
         self.brk = Breakdown(self.sname())
+        self.rsk = RiskAllocation(self.sector())
         self._price = 0.0
         self._stale = False
 
@@ -513,6 +514,9 @@ class Security:
 
     def region_breakdown(self):
         return self.brk.region_breakdown()
+
+    def risk_bucket(self):
+        return self.rsk.risk_bucket()
 
     def structure(self):
         if 'structure' in self._data.keys():

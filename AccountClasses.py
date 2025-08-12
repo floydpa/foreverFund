@@ -197,6 +197,18 @@ class Account:
 
         return brk
 
+    def risk_breakdown(self):
+        brk = {}
+        for pos in self._positions:
+            risk_breakdown = pos.risk_breakdown()
+            for risk_bucket in risk_breakdown.keys():
+                amount = pos.value()
+                if risk_bucket not in brk.keys():
+                    brk[risk_bucket] = 0.0
+                brk[risk_bucket] += amount
+
+        return brk
+
 
 # ===================================================================================
 # Account Group is a temporary object
@@ -327,6 +339,15 @@ class AccountGroup():
                 brk[k] += b[k]
         return brk
 
+    def risk_breakdown(self):
+        brk = {}
+        for account in self.accounts():
+            b = account.risk_breakdown()
+            for k in b.keys():
+                if k not in brk.keys():
+                    brk[k] = 0.0
+                brk[k] += b[k]
+        return brk
 
 if __name__ == '__main__':
     from PortfolioClasses import UserPortfolioGroup

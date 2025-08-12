@@ -280,6 +280,22 @@ def assets_breakdown():
     return render_template('pie-chart.html', form=form, data=data, title=title)
 
 # ---------------------------------------------------------------------------------------
+# Allocation to risk buckets
+# ---------------------------------------------------------------------------------------
+
+@app.route('/risk/breakdown', methods=['GET','POST'])
+def risk_breakdown():
+    form = PieChartForm()
+    title="Risk Bucket Allocation"
+    if form.validate_on_submit():
+        return redirect(url_for('index'))
+
+    logging.debug("session=%s"%(session))
+    data = uport.data_risk_split(session.get('ACCOUNT_NAME'), session.get('ACCOUNT_TYPE'))
+
+    return render_template('pie-chart.html', form=form, data=data, title=title)
+
+# ---------------------------------------------------------------------------------------
 # Asset breakdown - equities, bonds, property, etc.
 # ---------------------------------------------------------------------------------------
 
