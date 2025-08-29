@@ -322,6 +322,36 @@ def assets_by_class2():
     all = uport.tdl_position_assetclass_value(u, t, p, ac)
     return render_paginated_listn('acpositions.html', all, 'assets_by_class2', 50, title=title)
 
+
+# ---------------------------------------------------------------------------------------
+# Risk breakdown - High, Moderate or Cash/Cash-like
+# ---------------------------------------------------------------------------------------
+
+@app.route('/assets/risk/<id>', methods=['GET','POST'])
+def assets_by_risk(id):
+    logging.debug("assets_by_risk(%s) request=%s"%(id,request))
+    session['ASSET_RISK'] = id
+    return assets_by_risk2()
+
+@app.route('/assets/risk', methods=['GET','POST'])
+def assets_by_risk2():
+    logging.debug("assets_by_risk2: session=%s"%(session))
+
+    # if session.get('ACCOUNT_ID'):
+    #    id = session['ACCOUNT_ID']
+    #    (u, t, p) = id.split('_')
+    # else:
+    u = session['ACCOUNT_NAME']
+    t = session['ACCOUNT_TYPE']
+    p = session['PLATFORM_NAME']
+
+    ar = session.get('ASSET_RISK')
+    title="Account Assets (%s)" % (ar)
+    #### PJF - change for risk ####
+    all = uport.tdl_position_assetclass_value(u, t, p, ar)
+    return render_paginated_listn('acpositions.html', all, 'assets_by_risk2', 50, title=title)
+
+
 # ---------------------------------------------------------------------------------------
 # Other breakdowns
 # ---------------------------------------------------------------------------------------

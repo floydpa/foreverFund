@@ -6,6 +6,7 @@ import pandas as pd
 
 from SecurityClasses import SecurityUniverse
 from PlatformClasses import platformCode_to_class
+from config import USERDATA
 
 
 class Account:
@@ -15,8 +16,10 @@ class Account:
         self._defn = defn
         self._username = username
         self._account_type = defn['acctype']
-        self._summary_file = self.userdata_dirname() + '/' + defn['file']
         self._platform = platformCode_to_class(defn['platform'])()
+        # self._summary_file = os.path.join(self.userdata_dirname(), defn['file'])
+        # As Windows does not support symlinks, always use latest file
+        self._summary_file = None
         for pos in self._platform.load_positions(secu, self.usercode(), self._account_type, self._summary_file):
             pos.set_account(self)
             self.add_position(pos)
@@ -35,7 +38,7 @@ class Account:
         return self._username[:1]
 
     def userdata_dirname(self):
-        return "%s/UserData" % (os.getenv('HOME'))
+        return USERDATA
 
     def platform(self, fullname=False):
         return self._platform.name(fullname)
@@ -200,12 +203,11 @@ class Account:
     def risk_breakdown(self):
         brk = {}
         for pos in self._positions:
-            risk_breakdown = pos.risk_breakdown()
-            for risk_bucket in risk_breakdown.keys():
-                amount = pos.value()
-                if risk_bucket not in brk.keys():
-                    brk[risk_bucket] = 0.0
-                brk[risk_bucket] += amount
+            risk_bucket = pos.risk_bucket()
+            amount = pos.value()
+            if risk_bucket not in brk.keys():
+                brk[risk_bucket] = 0.0
+            brk[risk_bucket] += amount
 
         return brk
 

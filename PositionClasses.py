@@ -119,11 +119,8 @@ class Position:
             brk[k] = brk[k] * self.value() / 100.0
         return brk
 
-    def risk_breakdown(self):
-        brk = {}
-        risk_bucket = self._security.risk_bucket()
-        brk[risk_bucket] = self.value()
-        return brk
+    def risk_bucket(self):
+        return self._security.risk_bucket()
     
     def payout_frequency(self):
         return self._security.payout_frequency()
