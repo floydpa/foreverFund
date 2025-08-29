@@ -16,7 +16,6 @@ from wb_bysecurity import WsDividendsBySecurity
 
 class SecurityUniverse():
     def __init__(self, SecurityInfoDir):
-        # self._rootdir = os.getenv('HOME') + '/SecurityInfo'
         self._rootdir = SecurityInfoDir
         logging.debug("SecurityUniverse(%s)"%(SecurityInfoDir))
         self.refresh()
@@ -25,7 +24,7 @@ class SecurityUniverse():
         self._securities = {}
         self._aliases = {}
         for filename in os.listdir(self._rootdir):
-            full_path = self._rootdir + '/' + filename
+            full_path = os.path.join(self._rootdir, filename)
             if os.path.isdir(full_path):
                 continue
             sec = self.load_security(full_path)
