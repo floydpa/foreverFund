@@ -24,9 +24,13 @@ PLATFORM_NAME = 'ALL'   # Or something like 'AJB'
 LOGLEVEL = 'DEBUG'
 # LOGLEVEL = 'INFO'
 
-USERDATA = os.getenv('HOME') + '/UserData'
-SECURITYINFO = os.getenv('HOME') + '/SecurityInfo'
-ACCOUNTINFO = os.getenv('HOME') + '/AccountInfo'
+HOME = os.getenv('HOME')
+if HOME is None:
+    HOME = os.path.join('c:\\','Users','paulf')
+
+USERDATA     = os.path.join(HOME, 'UserData')
+SECURITYINFO = os.path.join(HOME, 'SecurityInfo')
+ACCOUNTINFO  = os.path.join(HOME, 'AccountInfo')
 
 # 2022-23
 HMRC_PARAMS = {

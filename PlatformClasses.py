@@ -1,5 +1,6 @@
 # Platform accounts making up a portfolio
 
+from importlib.metadata import files
 import pandas as pd
 import re
 import sys, os
@@ -8,6 +9,7 @@ import glob
 import logging
 import datetime
 
+from config import HOME, SECURITYINFO
 from PositionClasses import Position
 
 from wb import GspreadAuth, WbIncome, WbSecMaster
@@ -29,9 +31,9 @@ class Platform:
         return self._vdate
 
     def set_vdate(self, summary_file):
-        # filename = os.readlink(self.userdata_dirname() + '/' + summary_file)
-        filename = os.readlink(summary_file)
-        self._vdate = re.sub('\.csv$','',re.sub('^.*_','',filename))
+        # Windows doesn't support symlinks easily
+        # filename = os.readlink(summary_file)
+        self._vdate = re.sub('\.csv$','',re.sub('^.*_','',summary_file))
 
     def load_positions(self, secu, userCode, accountType, summary_file=None):
         positions = []
@@ -59,11 +61,11 @@ class Platform:
         return positions
 
     def download_dirname(self):
-        return "%s/Downloads" % (os.getenv('HOME'))
+        return os.path.join(HOME, 'Downloads')
 
     def userdata_dirname(self):
-        return "%s/UserData" % (os.getenv('HOME'))
-    
+        return os.path.join(HOME, 'UserData')
+
     def download_filename(self, username, accountType):
         return None
 
@@ -80,7 +82,7 @@ class Platform:
 
     def temp_filename(self, userCode, accountType):
         logging.debug("temp_filename(%s,%s)"%(userCode,accountType))
-        return "%s/%s_%s.tmp" % (self.download_dirname(), userCode, accountType)
+        return os.path.join(self.download_dirname(),"%s_%s.tmp" % (userCode, accountType))
 
     def download_formname(self):
         return None
@@ -89,17 +91,22 @@ class Platform:
         datadir = self.userdata_dirname()
         if dt is None:
             dt = datetime.datetime.now().strftime("%Y%m%d")
-        return "%s/%s_%s_%s_%s.csv" % (datadir, userCode, self.name(), accountType, dt)
-    
+        return os.path.join(datadir,"%s_%s_%s_%s.csv" % (userCode, self.name(), accountType, dt))
+
+    # symbolic links don't work on Windows, so find most recently modified file
     def latest_file(self, userCode, accountType):
         datadir = self.userdata_dirname()
-        return "%s/%s_%s_%s_latest" % (datadir, userCode, self.name(), accountType)
+        pattern = f"{userCode}_{self.name()}_{accountType}_*"
+        files = glob.glob(os.path.join(datadir, pattern))
+        if not files:
+            return None
+        return max(files, key=os.path.getmtime)
 
     def update_savings(self, userCode, accountType, cashAmount):
         datadir    = self.userdata_dirname()
         destfile   = self.dated_file(userCode, accountType)
         destlink   = self.latest_file(userCode,accountType)
-        sourcefile = "%s/%s" % (datadir, os.readlink(destlink))
+        sourcefile = os.path.join(datadir, os.readlink(destlink))
         tempfile   = self.temp_filename(userCode, accountType)
 
         logging.debug("src=%s dest=%s link=%s temp=%s" % (sourcefile,destfile,destlink,tempfile))
@@ -135,9 +142,10 @@ class Platform:
         target_filename    = os.path.basename(destFile)
         try:
             os.chdir(target_directory)
-            os.unlink(destLink)
-            os.symlink(target_filename, destLink)
-            logging.debug("symlink(%s:%s,%s)" % (target_directory, target_filename, destLink))
+            if False:  # Windows doesn't support symlinks easily
+                os.unlink(destLink)
+                os.symlink(target_filename, destLink)
+                logging.debug("symlink(%s:%s,%s)" % (target_directory, target_filename, destLink))
 
             # Finally remove the source file which had been downloaded
             if removeSource:
@@ -246,7 +254,7 @@ class II(Platform):
 
         # Contents of downloaded file need various changes, so copy to new file
         dt = datetime.datetime.now().strftime("%Y%m%d")
-        dest_file = "%s/%s_%s_%s_%s.csv" % (self.download_dirname(), userCode, accountType, self.name(), dt)
+        dest_file = os.path.join(self.download_dirname(),"%s_%s_%s_%s.csv" % (userCode, accountType, self.name(), dt))
 
         # Copy contents to a new file with some changes on the way
         with open(download_file, 'r') as src, open(dest_file, 'w') as dst:
@@ -294,9 +302,11 @@ class II(Platform):
         self.update_latest_link(filename, destfile, destlink)
 
     def load_positions(self, secu, userCode, accountType, summary_file=None):
+        logging.debug("load_positions(%s,%s,%s)"%(userCode,accountType,summary_file))
         positions = []
         if summary_file is None:
             summary_file = self.latest_file(userCode,accountType)
+            logging.debug("load_positions, summary_file=%s)"%(summary_file))
         self.set_vdate(summary_file)
         df = pd.read_csv(summary_file)
         logging.debug("load_positions dtypes=%s"%df.dtypes)
@@ -467,7 +477,7 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
     
     # Load details of all securities held in positions
-    secinfo_dir = os.getenv('HOME') + '/SecurityInfo'
+    secinfo_dir = SECURITYINFO
     secu = SecurityUniverse(secinfo_dir)
 
     # uport = UserPortfolios(secu)
@@ -481,7 +491,7 @@ if __name__ == '__main__':
     p = GSM()
     p = NW()
     p = FSB()
-    p = CSB()
+    # p = CSB()
     print(p.latest_file('C','Sav'))
     for pos in p.load_positions(secu, 'C', 'Sav'):
         print (pos)

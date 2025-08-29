@@ -5,6 +5,8 @@ import logging
 
 from decimal import Decimal
 
+from config import SECURITYINFO
+
 # ASSET CLASS BREAKDOWN (DD/MM/YYYY)
 # REGION BREAKDOWN (DD/MM/YYYY)
 
@@ -30,10 +32,10 @@ def truncate_decimal(value, decimal_places=2):
 
 class Breakdown():
     def __init__(self,name):
-        self._rootdir = os.getenv('HOME') + '/SecurityInfo/Breakdown'
+        self._rootdir = os.path.join(SECURITYINFO, 'Breakdown')
         self._assets = []
         self._regions = []
-        full_path = self._rootdir + '/' + name
+        full_path = os.path.join(self._rootdir, name)
         in_assets = False
         in_region = False
         if os.path.isfile(full_path):
