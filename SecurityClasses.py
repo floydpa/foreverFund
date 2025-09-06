@@ -13,6 +13,8 @@ from wb import WS_SECURITY_INFO, WS_SECURITY_URLS
 
 from wb_bysecurity import WsDividendsBySecurity
 
+from config import SECURITYINFO
+
 
 class SecurityUniverse():
     def __init__(self, SecurityInfoDir):
@@ -703,10 +705,10 @@ def security_update_json(ForeverIncome, SecurityMaster, SecurityId):
             defn['info'][u['Platform']] = u['Url']
 
     # Copy existing file in the Archive directory then recreate original
-    sec_dir = f"{os.getenv('HOME')}/SecurityInfo"
-    arc_dir = f"{sec_dir}/Archive"
-    sec_file = f"{sec_dir}/{SecurityId}.json"
-    arc_file = f"{arc_dir}/{SecurityId}.json"
+    sec_dir = SECURITYINFO
+    arc_dir = os.path.join(sec_dir, "Archive")
+    sec_file = os.path.join(sec_dir, f"{SecurityId}.json")
+    arc_file = os.path.join(arc_dir, f"{SecurityId}.json")
 
     shutil.copy(sec_file, arc_file)
     with open(sec_file, 'w') as fp:
