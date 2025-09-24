@@ -442,6 +442,13 @@ class UserPortfolioGroup():
                     assert False, "Unknown asset_class (%s)" % (asset_class)
             elif fn == "income":
                 value = pos.annual_income()
+            elif fn == "risk":
+                alloc = 0.0
+                rb = pos.risk_bucket()
+                if asset_class is None or rb == asset_class:
+                    value = pos.value()
+                else:
+                    value = 0.0
             else:
                 assert False, "Unknown value for 'fn' (%s)" % (fn)
 
@@ -458,7 +465,11 @@ class UserPortfolioGroup():
                 else:
                     dispUserAccount = ""
 
-                stralloc = "%6s" % ("{0:,.1f}".format(alloc))
+                if alloc == 0.0:
+                    stralloc = "      "
+                else:
+                    stralloc = "%6s" % ("{0:,.1f}".format(alloc))
+
                 posname = "%s (%s)" % (pos.lname(), pos.sector())
                 poslist.append({'useraccount': dispUserAccount, 'id': pos.sname(), 'name': posname, 'percentage': stralloc, 'value': strvalue})
 
@@ -606,6 +617,10 @@ class UserPortfolioGroup():
     # Asset class value at position level
     def tdl_position_assetclass_value(self, username=None, account_type=None, platform_name=None, asset_class=None):
         return self.tdl_position_general("value", username, account_type, platform_name, asset_class)
+
+    # Asset risk value at position level
+    def tdl_position_riskbucket_value(self, username=None, account_type=None, platform_name=None, risk_bucket=None):
+        return self.tdl_position_general("risk", username, account_type, platform_name, risk_bucket)
 
     # Asset value at position level without a total
     def tdl_position_list(self, username=None, account_type=None, platform_name=None):

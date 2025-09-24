@@ -346,9 +346,18 @@ def assets_by_risk2():
     p = session['PLATFORM_NAME']
 
     ar = session.get('ASSET_RISK')
-    title="Account Assets (%s)" % (ar)
-    #### PJF - change for risk ####
-    all = uport.tdl_position_assetclass_value(u, t, p, ar)
+    if ar == 'high':
+        risk_bucket = 'High'
+    elif ar == 'moderate':
+        risk_bucket = 'Moderate'
+    elif ar == 'cash':
+        risk_bucket = 'Cash/Cash-like'
+    else:
+        risk_bucket = None
+
+    title="Account Assets (%s)" % (risk_bucket)
+    #### PJF - change for risk ####
+    all = uport.tdl_position_riskbucket_value(u, t, p, risk_bucket)
     return render_paginated_listn('acpositions.html', all, 'assets_by_risk2', 50, title=title)
 
 
