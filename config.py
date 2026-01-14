@@ -32,6 +32,8 @@ USERDATA     = os.path.join(HOME, 'UserData')
 SECURITYINFO = os.path.join(HOME, 'SecurityInfo')
 ACCOUNTINFO  = os.path.join(HOME, 'AccountInfo')
 
+DOWNLOADS = os.path.join(HOME, 'Downloads')
+
 # 2022-23
 HMRC_PARAMS = {
     'taxrateBasic': 0.2,

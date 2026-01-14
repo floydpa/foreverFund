@@ -153,6 +153,8 @@ class AssetAllocation:
                 { "equity": 100.0, "bond": 0.0, "infrastructure": 0.0, "property": 0.0, "commodities": 0.0, "cash": 0.0 },
             "UK Equity Income": 
                 { "equity": 100.0, "bond": 0.0, "infrastructure": 0.0, "property": 0.0, "commodities": 0.0, "cash": 0.0 },
+             "UK Gilts":
+                { "equity": 0.0, "bond": 100.0, "infrastructure": 0.0, "property": 0.0, "commodities": 0.0, "cash": 0.0 },
             "UK Smaller Companies": 
                 { "equity": 100.0, "bond": 0.0, "infrastructure": 0.0, "property": 0.0, "commodities": 0.0, "cash": 0.0 },
             "USD Index Linked": 
@@ -211,6 +213,7 @@ def parent_sector_list():
         "Mixed Investment",
         "Global Bonds",
         "GBP Strategic Bond",
+        "UK Gilts",
         "Property",
         "Commodities",
         "Money Market"
@@ -252,6 +255,7 @@ class SectorAllocation():
         "Technology & Telecommunications": "Global Equity",
         "UK All Companies": "UK Equity",
         "UK Equity Income": "UK Equity",
+        "UK Gilts": "UK Gilts",
         "UK Smaller Companies": "UK Equity",
         "USD Index Linked": "Global Bonds",
         "With Profits": "Mixed Investment"
@@ -313,6 +317,7 @@ class RiskAllocation():
         "Technology & Telecommunications": "High",
         "UK All Companies": "High",
         "UK Equity Income": "High",
+        "UK Gilts": "Moderate",
         "UK Smaller Companies": "High",
         "USD Index Linked": "Moderate",
         "With Profits": "Moderate"

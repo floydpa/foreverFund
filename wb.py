@@ -15,6 +15,8 @@ from wb_format import fmt_columns_decimal, fmt_columns_percentage
 from wb_format import fmt_columns_currency, fmt_columns_hjustify
 from wb_format import RGB_GREY
 
+from config import DOWNLOADS
+
 
 # Worksheets used as source information
 WS_HL_DIVIDENDS     = "hl"             # Hargreaves Lansdown dividend information
@@ -147,6 +149,26 @@ class WsSecInfo(Ws):
         
         logging.debug(f"service request response {response}")
 
+    def save_json(self):
+        # Create dataframe from individual security definitions
+        self._df = self.create_security_info(self._secu)
+
+        # Save the file in Downloads folder
+        json_filename = os.path.join(DOWNLOADS, 'securities.json')
+
+        # Rename columns to remove spaces and standardise case
+        df = self.df().rename(columns={
+            'sname':'securityId',
+            'lname':'securityName',
+            'stype':'securityType',
+            'fund-class':'fundClass',
+            'div-freq':'divFreq',
+            'ISIN':'isin',
+            'SEDOL':'sedol'
+        })
+        
+        df.to_json(json_filename, orient='records', indent=4)
+        return json_filename
 
     def refresh(self):
         # Create dataframe from individual security definitions
@@ -337,11 +359,36 @@ class WsByPosition(Ws):
         logging.debug(f"service request response {response}")
         
 
+    def save_json(self, df):
+        # Save the file in Downloads folder
+        json_filename = os.path.join(DOWNLOADS, 'positions.json')
+
+        # Rename columns to remove spaces and standardise case
+        df = df.rename(columns={
+            'Who': 'owner',
+            'AccType': 'accountType',
+            'Platform': 'platform',
+            'AccountId':'accountId',
+            'SecurityId':'securityId',
+            'Name': 'securityName',
+            'Quantity':'quantity',
+            'BookCost': 'bookCost',
+            'Value': 'value',
+            'ValueDate': 'valueDate'
+        })
+        
+        df.to_json(json_filename, orient='records', indent=4)
+        return json_filename
+    
+
     # Create or update the worksheet using a list of Position instances
     def refresh(self, positions):
 
         # Create a dataframe from the positions
         df = self.create_position_info(positions)
+
+        # Save position information as JSON file
+        self.save_json(df)
 
         # Use new df to add/update position income sheet
         # Allow 4 additional columns for formulas to be added later

@@ -15,7 +15,7 @@ from PlatformClasses import platformCode_to_class
 from AccountClasses import AccountGroup
 from SecurityClasses import security_update_json
 
-from wb import GspreadAuth, WbIncome, WbSecMaster, WsByPosition
+from wb import GspreadAuth, WbIncome, WbSecMaster, WsByPosition, WsSecInfo
 from wb_bysecurity import WsDividendsBySecurity, WsEstimatedIncome
 
 # ---------------------------------------------------------------------------------------
@@ -221,6 +221,10 @@ def wb_income_by_security():
 
     bySecurity = WsDividendsBySecurity(ForeverIncome,SecurityMaster)
     bySecurity.refresh()
+
+    # Update the SecurityInfo JSON file
+    sinfo = WsSecInfo(SecurityMaster, secu)
+    sinfo.save_json()
 
     return redirect(url_for('index'))
 

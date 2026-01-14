@@ -2,6 +2,7 @@
 # Create/Update the 'By Security' income sheet
 #------------------------------------------------------------------------------
 
+import os
 import logging
 import pandas as pd
 from datetime import datetime, timedelta
@@ -10,6 +11,7 @@ from datetime import datetime, timedelta
 # Worksheets names
 
 # Base worksheet class
+from config import DOWNLOADS
 from wb import Ws
 # Source dividend information
 from wb import WS_HL_DIVIDENDS, WS_FE_DIVIDENDS, WS_OTHER_DIVIDENDS
@@ -424,7 +426,40 @@ class WsEstimatedIncome(Ws):
 
         return response
 
+    def save_json(self):
+        # Save the file in Downloads folder
+        json_filename = os.path.join(DOWNLOADS, 'payments.json')
+
+        # Rename columns to remove spaces and standardise case
+        df = self.df().rename(columns={
+            'AccountId':'accountId',
+            'Year':'year',
+            'Month':'month',
+            'Day':'day',
+            'Tax Year':'taxYear',
+            'Who':'owner',
+            'Type':'accountType',
+            'SecurityId':'securityId',
+            'Freq':'freq',
+            'Quantity':'quantity',
+            'Value':'value',
+            'Yield':'yield',
+            'Unit':'unit',
+            'Amount':'amount',
+            'Status':'status'
+        })
+
+        # Create 'paymentDate' column in YYYYMMDD format to replace year, month, day
+        df['paymentDate'] = df.apply(lambda row: f"{row['year']:04d}{row['month']:02d}{row['day']:02d}", axis=1)
+        df = df.drop(columns=['year','month','day'])
+
+        df.to_json(json_filename, orient='records', indent=4)
+        return json_filename
+    
     def refresh(self):
+        # Generate a json file containing the projected income
+        self.save_json()
+
         # Create or update the worksheet
         self.wbinstance().df_to_worksheet(self.df(), self.wsname())
         self.apply_formatting()

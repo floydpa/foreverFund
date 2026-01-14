@@ -171,6 +171,8 @@ class AJB(Platform):
         logging.debug("download_filename(%s,%s)"%(userCode,accountType))
         if accountType == 'Pens':
             accountType = 'SIPP'
+        elif accountType == 'Trd':
+            accountType = 'Dealing account'
         pattern = f"portfolio-*{accountType}.csv"
         return self.most_recent_download(pattern)
 
