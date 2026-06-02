@@ -470,7 +470,10 @@ class TUI(CashAccount):
 class IIDD(CashAccount):
     def __init__(self):
         CashAccount.__init__(self, "II Pension Drawdown")
-        
+
+class T212(CashAccount):
+    def __init__(self):
+        CashAccount.__init__(self, "Trading 212 Invest Account")        
 
 if __name__ == '__main__':
     

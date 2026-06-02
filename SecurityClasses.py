@@ -316,9 +316,9 @@ class Security:
                 except ValueError:
                     dt_obj = dt_obj.replace(month=2, day=28, year=dt_obj.year + 1)
                 
-                # Advance date if Sat or Sun
+                # Bring forward the date if Sat or Sun rather than advance it
                 while dt_obj.weekday() >= 5:
-                    dt_obj = dt_obj + timedelta(days=1)
+                    dt_obj = dt_obj - timedelta(days=1)
 
                 div_status = "Est"
                 div_date = dt_obj.strftime("%Y%m%d")

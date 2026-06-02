@@ -135,6 +135,8 @@ class AssetAllocation:
                 { "equity": 40.0, "bond": 60.0, "infrastructure": 0.0, "property": 0.0, "commodities": 0.0, "cash": 0.0 },
             "Mixed Investment 40-85% Shares": 
                 { "equity": 62.5, "bond": 37.5, "infrastructure": 0.0, "property": 0.0, "commodities": 0.0, "cash": 0.0 },
+            "Private Equity": 
+                { "equity": 100.0, "bond": 0.0, "infrastructure": 0.0, "property": 0.0, "commodities": 0.0, "cash": 0.0 },
             "Property": 
                 { "equity": 0.0, "bond": 0.0, "infrastructure": 0.0, "property": 100.0, "commodities": 0.0, "cash": 0.0 },
             "Property Securities": 
@@ -246,6 +248,7 @@ class SectorAllocation():
         "Mixed Investment 0-35% Shares": "Mixed Investment",
         "Mixed Investment 20-60% Shares": "Mixed Investment",
         "Mixed Investment 40-85% Shares": "Mixed Investment",
+        "Private Equity": "Global Equity",
         "Property": "Property",
         "Property Securities": "Property",
         "Property - UK Commercial": "Property",
@@ -308,6 +311,7 @@ class RiskAllocation():
         "Mixed Investment 0-35% Shares": "Moderate",
         "Mixed Investment 20-60% Shares": "Moderate",
         "Mixed Investment 40-85% Shares": "High",
+        "Private Equity": "High",
         "Property": "Moderate",
         "Property Securities": "Moderate",
         "Property - UK Commercial": "Moderate",
